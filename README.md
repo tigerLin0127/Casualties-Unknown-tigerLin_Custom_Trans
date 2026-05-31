@@ -41,7 +41,7 @@
 
 > **英文原文：** "A pack of small medical dressings, made to treat small injuries. Lowers bleeding."
 >
-> **社区精准版（假设）：** 一包小型医用敷料，用于处理轻微伤口。可减少出血。
+> **社区精准版：** 一包小型医用敷料，用于处理轻微伤口。可减少出血。
 >
 > **本版本：** "一包小型医用敷料，用于处理轻微伤口。可减少出血。
 > 

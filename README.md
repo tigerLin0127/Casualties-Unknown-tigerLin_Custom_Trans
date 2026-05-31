@@ -2,7 +2,7 @@
 
 
 
-# tigerLin定制版简中 — Casualties Unknown / 未知伤亡
+# tigerLin定制版简中汉化 — Casualties Unknown / 未知伤亡
 
 <div align="center">
 

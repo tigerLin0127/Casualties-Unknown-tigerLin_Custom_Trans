@@ -64,6 +64,7 @@
 本翻译尽量把每种药品的实际用途、风险和注意事项讲得通俗易懂，而不是照搬说明书
 
 简而言之
+
 **不需要自己试错才知道什么会要命**
 
 **重建了信息层级**
@@ -85,7 +86,9 @@
 
 ## 安装方法
 
->  在 https://wwarz.lanzouu.com/i4M8D3p9j11e 按照教程安装社区汉化版后，将我的汉化Json文件拖到  游戏根目录\CasualtiesUnknown_Data\Lang 内即可
+>  在 https://wwarz.lanzouu.com/i4M8D3p9j11e 按照教程安装社区汉化版后，
+
+将我的汉化Json文件拖到  游戏根目录\CasualtiesUnknown_Data\Lang 内即可
 
 ---
 

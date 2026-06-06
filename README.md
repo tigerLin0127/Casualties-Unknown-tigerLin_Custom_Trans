@@ -1,4 +1,4 @@
-[![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2Fgjbae1212%2Fhit-counter)](https://hits.seeyoufarm.com)                    
+![Visitors](https://count.getloli.com/get/@tigerLin0127.Casualties-Unknown-tigerLin_Custom_Trans?theme=rule34)
 
 ! ! 这不是在社区中心置顶的那个翻译版本 ! !     如需查找社区置顶翻译，请移步 https://wwarz.lanzouu.com/i4M8D3p9j11e
 

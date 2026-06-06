@@ -1,4 +1,4 @@
-![Visitors](https://count.getloli.com/get/@tigerLin0127.Casualties-Unknown-tigerLin_Custom_Trans?theme=rule34)
+![:tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans](https://count.getloli.com/@tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans?theme=moebooru&padding=7)
 
 ! ! 这不是在社区中心置顶的那个翻译版本 ! !     如需查找社区置顶翻译，请移步 https://wwarz.lanzouu.com/i4M8D3p9j11e
 

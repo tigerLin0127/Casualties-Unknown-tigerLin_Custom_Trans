@@ -1,5 +1,5 @@
 目前该页面的总访问量：
-![:visits](https://count.getloli.com/@tigerLin_CU_Trans?theme=3d-num)
+![:visits](https://count.getloli.com/@tigerLin_CU_Trans?theme=booru-rfck)
 
 
 ! ! 这不是在社区中心置顶的那个翻译版本 ! !     如需查找社区置顶翻译，请移步 https://wwarz.lanzouu.com/i4M8D3p9j11e

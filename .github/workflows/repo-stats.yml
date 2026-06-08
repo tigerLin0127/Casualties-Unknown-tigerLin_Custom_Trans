@@ -1,4 +1,5 @@
-name: CASUALTIES_UNKNOWN_CUSTOM_TRANS_STAT_TRACK
+name: Repository Traffic Dashboard
+
 on:
   schedule:
     - cron: "0 0 * * *"
@@ -6,127 +7,383 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
-  traffic-stats:
+  update-dashboard:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch traffic and update CSV
+      - name: Fetch data & generate dashboard
         env:
-          GITHUB_TOKEN: ${{ secrets.STATS_TOKEN }}
+          TOKEN: ${{ secrets.STATS_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
-          DATE=$(date +%Y-%m-%d)
-          VIEWS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$REPO/traffic/views")
-          CLONES=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$REPO/traffic/clones")
-
-          V=$(python3 -c "import sys,json; print(json.load(sys.stdin).get('count','0'))" <<< "$VIEWS")
-          UV=$(python3 -c "import sys,json; print(json.load(sys.stdin).get('uniques','0'))" <<< "$VIEWS")
-          C=$(python3 -c "import sys,json; print(json.load(sys.stdin).get('count','0'))" <<< "$CLONES")
-          UC=$(python3 -c "import sys,json; print(json.load(sys.stdin).get('uniques','0'))" <<< "$CLONES")
-
-          mkdir -p data
-          CSV="data/traffic.csv"
-          [ ! -f "$CSV" ] && echo "date,views,unique_views,clones,unique_clones" > "$CSV"
-          echo "$DATE,$V,$UV,$C,$UC" >> "$CSV"
-
-      - name: Generate chart page
-        run: |
           python3 << 'PYEOF'
-          import json, os
+          import urllib.request, json, os, csv
+          from datetime import date
+            
+          token = os.environ["TOKEN"]
+          repo = os.environ["REPO"]
+          today = date.today().isoformat()
 
+          def fetch(endpoint):
+              url = f"https://api.github.com/repos/{repo}/{endpoint}"
+              req = urllib.request.Request(url, headers={
+                  "Authorization": f"Bearer {token}",
+                  "Accept": "application/vnd.github+json",
+                  "User-Agent": "github-actions"
+              })
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      return json.loads(r.read())
+              except Exception as e:
+                  print(f"⚠️ Fetch {endpoint} failed: {e}")
+                  return None
+
+          views_data = fetch("traffic/views")
+          clones_data = fetch("traffic/clones")
+          referrers = fetch("traffic/popular/referrers") or []
+          paths = fetch("traffic/popular/paths") or []
+          repo_info = fetch("") or {}
+
+          vc = views_data.get("count", 0) if views_data else 0
+          vu = views_data.get("uniques", 0) if views_data else 0
+          cc = clones_data.get("count", 0) if clones_data else 0
+          cu = clones_data.get("uniques", 0) if clones_data else 0
+          stars = repo_info.get("stargazers_count", 0)
+          forks = repo_info.get("forks_count", 0)
+          repo_name = repo_info.get("full_name", repo)
+          repo_desc = repo_info.get("description", "")
+
+          os.makedirs("data", exist_ok=True)
           csv_path = "data/traffic.csv"
-          dates, views, unique_views, clones, unique_clones = [], [], [], [], []
+          header_exists = os.path.exists(csv_path)
 
-          if os.path.exists(csv_path):
-              with open(csv_path) as f:
-                  lines = f.read().strip().split("\n")
-              for line in lines[1:]:
-                  parts = line.split(",")
-                  if len(parts) == 5:
-                      dates.append(parts[0])
-                      views.append(int(parts[1]))
-                      unique_views.append(int(parts[2]))
-                      clones.append(int(parts[3]))
-                      unique_clones.append(int(parts[4]))
+          with open(csv_path, "a", newline="") as f:
+              w = csv.writer(f)
+              if not header_exists:
+                  w.writerow(["date","views","unique_views","clones","unique_clones"])
+              w.writerow([today, vc, vu, cc, cu])
 
-          dates, views, unique_views, clones, unique_clones = (
-              dates[-90:], views[-90:], unique_views[-90:], clones[-90:], unique_clones[-90:]
-          )
+          # Read all historical data
+          all_dates, all_v, all_uv, all_c, all_uc = [], [], [], [], []
+          with open(csv_path) as f:
+              for row in csv.DictReader(f):
+                  all_dates.append(row["date"])
+                  all_v.append(int(row["views"]))
+                  all_uv.append(int(row["unique_views"]))
+                  all_c.append(int(row["clones"]))
+                  all_uc.append(int(row["unique_clones"]))
 
+          total_v_all = sum(all_v)
+          total_c_all = sum(all_c)
+          data_start = all_dates[0] if all_dates else today
+          data_end = all_dates[-1] if all_dates else today
+          first_date_90 = all_dates[-90] if len(all_dates) >= 90 else all_dates[0]
+
+          # Referrers & paths
+          top_refs = sorted(referrers, key=lambda x: x.get("count",0), reverse=True)[:12]
+          top_paths = sorted(paths, key=lambda x: x.get("count",0), reverse=True)[:12]
+
+          ref_labels = [r.get("referrer","Unknown").replace("https://","").replace("http://","").rstrip("/")[:55] for r in top_refs]
+          ref_counts = [r.get("count",0) for r in top_refs]
+          ref_uniques = [r.get("uniques",0) for r in top_refs]
+
+          path_labels = [p.get("path","/")[:45] for p in top_paths]
+          path_counts = [p.get("count",0) for p in top_paths]
+          path_uniques = [p.get("uniques",0) for p in top_paths]
+
+          # ─── HTML ───
           html = f"""<!DOCTYPE html>
           <html lang="zh">
           <head>
           <meta charset="utf-8">
-          <title>Traffic Report</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Traffic · {repo_name}</title>
           <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
           <style>
-            body {{ font-family: -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; background: #0d1117; color: #c9d1d9; }}
-            h1 {{ text-align: center; }}
-            .chart-box {{ background: #161b22; border-radius: 8px; padding: 1.5rem; margin: 1.5rem 0; }}
-            canvas {{ max-height: 350px; }}
-            .footer {{ text-align: center; font-size: 0.85rem; color: #8b949e; margin-top: 2rem; }}
+          *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
+          body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh;line-height:1.6}}
+          .container{{max-width:1050px;margin:0 auto;padding:2rem 1.5rem}}
+          .header{{text-align:center;margin-bottom:2rem;padding:2.5rem 2rem;background:linear-gradient(135deg,#161b22 0%,#1c2333 100%);border-radius:16px;border:1px solid #30363d}}
+          .header h1{{font-size:2rem;font-weight:700;background:linear-gradient(135deg,#58a6ff,#bc8cff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}}
+          .header .repo{{font-size:1.1rem;color:#8b949e;margin-top:0.5rem}}
+          .header .desc{{font-size:0.95rem;color:#6e7681;margin-top:0.3rem}}
+          .header .updated{{font-size:0.8rem;color:#484f58;margin-top:0.8rem}}
+
+          /* Date filter */
+          .filter-bar{{display:flex;flex-wrap:wrap;align-items:center;gap:0.75rem;margin-bottom:1.5rem;padding:1rem 1.25rem;background:#161b22;border:1px solid #30363d;border-radius:12px}}
+          .filter-bar label{{font-size:0.85rem;color:#8b949e;white-space:nowrap}}
+          .filter-bar input[type="date"]{{background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:0.4rem 0.7rem;font-size:0.85rem;font-family:inherit}}
+          .filter-bar input[type="date"]:focus{{outline:none;border-color:#58a6ff}}
+          .filter-bar button{{padding:0.4rem 0.9rem;border-radius:6px;font-size:0.82rem;font-weight:500;cursor:pointer;border:1px solid #30363d;background:#21262d;color:#c9d1d9;font-family:inherit;transition:all 0.15s}}
+          .filter-bar button:hover{{background:#30363d;border-color:#8b949e}}
+          .filter-bar button.active{{background:#1f6feb;border-color:#1f6feb;color:#fff}}
+          .filter-bar .presets{{display:flex;flex-wrap:wrap;gap:0.4rem}}
+
+          .summary{{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.85rem;margin-bottom:1.5rem}}
+          .card{{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:1.1rem 1.25rem;transition:border-color 0.2s,transform 0.2s}}
+          .card:hover{{border-color:#58a6ff;transform:translateY(-2px)}}
+          .card .icon{{font-size:1.4rem;margin-bottom:0.3rem}}
+          .card .label{{font-size:0.75rem;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px}}
+          .card .value{{font-size:1.7rem;font-weight:700;color:#e6edf3;margin:0.2rem 0}}
+          .card .sub{{font-size:0.75rem;color:#6e7681}}
+
+          .section{{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:1.5rem;margin-bottom:1.25rem}}
+          .section h2{{font-size:1.1rem;font-weight:600;color:#e6edf3;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem}}
+          .chart-wrap canvas{{max-height:300px}}
+
+          .two-col{{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem}}
+          @media(max-width:750px){{.two-col{{grid-template-columns:1fr}} .summary{{grid-template-columns:repeat(2,1fr)}} .filter-bar{{flex-direction:column;align-items:flex-start}}}}
+
+          .data-table{{width:100%;border-collapse:collapse;font-size:0.82rem;margin-top:0.5rem}}
+          .data-table th{{text-align:left;padding:0.5rem 0.7rem;color:#8b949e;font-weight:600;border-bottom:1px solid #21262d;font-size:0.75rem;text-transform:uppercase}}
+          .data-table td{{padding:0.45rem 0.7rem;border-bottom:1px solid #21262d;color:#c9d1d9}}
+          .data-table tr:hover td{{background:#1c2128}}
+          .data-table .num{{text-align:right;font-variant-numeric:tabular-nums}}
+          details{{margin-top:0.5rem}}
+          details summary{{cursor:pointer;color:#58a6ff;font-size:0.85rem;font-weight:500;user-select:none}}
+          details summary:hover{{color:#79c0ff}}
+
+          .footer{{text-align:center;font-size:0.78rem;color:#484f58;margin-top:2.5rem;padding-top:1.5rem;border-top:1px solid #21262d}}
+          .footer a{{color:#58a6ff;text-decoration:none}}
+          .footer a:hover{{text-decoration:underline}}
+          .range-info{{font-size:0.8rem;color:#8b949e;margin-left:auto}}
           </style>
           </head>
           <body>
-          <h1>📊 Repository Traffic Report</h1>
-          <p style="text-align:center;color:#8b949e">每日自动更新 · 数据来自 GitHub Traffic API</p>
+          <div class="container">
 
-          <div class="chart-box">
-            <h3>👁️ Views（浏览量）</h3>
-            <canvas id="viewsChart"></canvas>
-          </div>
-          <div class="chart-box">
-            <h3>📥 Clones（克隆量）</h3>
-            <canvas id="clonesChart"></canvas>
+          <div class="header">
+            <h1>📊 Repository Traffic Dashboard</h1>
+            <div class="repo">{repo_name}</div>
+            {f'<div class="desc">{repo_desc}</div>' if repo_desc else ''}
+            <div class="updated">🕐 最后更新：{today}（每日自动刷新）</div>
           </div>
 
-          <div class="footer">Powered by GitHub Actions</div>
+          <!-- Date Filter -->
+          <div class="filter-bar">
+            <label>📅 起始</label>
+            <input type="date" id="startDate" value="{first_date_90}">
+            <label>→ 截止</label>
+            <input type="date" id="endDate" value="{data_end}">
+            <button onclick="applyFilter()">🔍 筛选</button>
+            <button onclick="resetFilter()">↺ 重置</button>
+            <div class="presets">
+              <button onclick="preset(7)">7天</button>
+              <button onclick="preset(30)">30天</button>
+              <button onclick="preset(90)" class="active" id="preset90">90天</button>
+              <button onclick="preset(365)">1年</button>
+              <button onclick="preset(0)">全部</button>
+            </div>
+            <span class="range-info" id="rangeInfo">数据范围：{data_start} ~ {data_end}</span>
+          </div>
+
+          <!-- Summary cards -->
+          <div class="summary" id="summaryCards">
+            <div class="card"><div class="icon">📊</div><div class="label">时段浏览</div><div class="value" id="cardViews">-</div><div class="sub" id="cardUV">独立访客 -</div></div>
+            <div class="card"><div class="icon">📥</div><div class="label">时段克隆</div><div class="value" id="cardClones">-</div><div class="sub" id="cardUC">独立用户 -</div></div>
+            <div class="card"><div class="icon">📈</div><div class="label">日均浏览</div><div class="value" id="cardAvgV">-</div><div class="sub">时段内平均</div></div>
+            <div class="card"><div class="icon">📦</div><div class="label">日均克隆</div><div class="value" id="cardAvgC">-</div><div class="sub">时段内平均</div></div>
+            <div class="card"><div class="icon">⭐</div><div class="label">Stars</div><div class="value">{stars:,}</div><div class="sub">全部历史</div></div>
+            <div class="card"><div class="icon">🍴</div><div class="label">Forks</div><div class="value">{forks:,}</div><div class="sub">全部历史</div></div>
+          </div>
+
+          <!-- Charts -->
+          <div class="section"><h2>👁️ 浏览量</h2><div class="chart-wrap"><canvas id="viewsChart"></canvas></div></div>
+          <div class="section"><h2>📥 克隆量</h2><div class="chart-wrap"><canvas id="clonesChart"></canvas></div></div>
+          <div class="two-col">
+            <div class="section"><h2>🌐 热门来源</h2><div class="chart-wrap"><canvas id="refChart"></canvas></div></div>
+            <div class="section"><h2>📄 热门页面</h2><div class="chart-wrap"><canvas id="pathChart"></canvas></div></div>
+          </div>
+
+          <!-- Data table -->
+          <div class="section"><h2>📋 明细数据</h2>
+            <div style="overflow-x:auto"><table class="data-table" id="dataTable"><thead><tr><th>日期</th><th class="num">Views</th><th class="num">独立访客</th><th class="num">Clones</th><th class="num">独立克隆</th></tr></thead><tbody></tbody></table></div>
+          </div>
+
+          <div class="footer">
+            Powered by <a href="https://github.com/{repo}">GitHub Actions</a> · 数据每日 UTC 0:00 自动更新
+          </div>
+          </div>
 
           <script>
-          const labels = {json.dumps(dates, ensure_ascii=False)};
-          const dark = '#8b949e';
-          const grid = 'rgba(255,255,255,0.06)';
-          Chart.defaults.color = dark;
-          Chart.defaults.borderColor = grid;
+          // ─── All historical data ───
+          const ALL_DATES = {json.dumps(all_dates, ensure_ascii=False)};
+          const ALL_V = {json.dumps(all_v)};
+          const ALL_UV = {json.dumps(all_uv)};
+          const ALL_C = {json.dumps(all_c)};
+          const ALL_UC = {json.dumps(all_uc)};
+          const DATA_START = "{data_start}";
+          const DATA_END = "{data_end}";
 
-          new Chart(document.getElementById('viewsChart'), {{
-            type: 'line',
-            data: {{
-              labels: labels,
-              datasets: [
-                {{ label: 'Views', data: {json.dumps(views)}, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.3 }},
-                {{ label: 'Unique visitors', data: {json.dumps(unique_views)}, borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.05)', fill: true, tension: 0.3, borderDash: [5,5] }}
-              ]
-            }},
-            options: {{ responsive: true, plugins: {{ legend: {{ labels: {{ usePointStyle: true }} }} }}, scales: {{ y: {{ beginAtZero: true, grid: {{ color: grid }} }}, x: {{ grid: {{ color: grid }} }} }} }}
-          }});
+          // Chart instances
+          let charts = {{}};
+          const gridColor = 'rgba(255,255,255,0.05)';
 
-          new Chart(document.getElementById('clonesChart'), {{
-            type: 'line',
-            data: {{
-              labels: labels,
-              datasets: [
-                {{ label: 'Clones', data: {json.dumps(clones)}, borderColor: '#d2a8ff', backgroundColor: 'rgba(210,168,255,0.1)', fill: true, tension: 0.3 }},
-                {{ label: 'Unique cloners', data: {json.dumps(unique_clones)}, borderColor: '#f0883e', backgroundColor: 'rgba(240,136,62,0.05)', fill: true, tension: 0.3, borderDash: [5,5] }}
-              ]
-            }},
-            options: {{ responsive: true, plugins: {{ legend: {{ labels: {{ usePointStyle: true }} }} }}, scales: {{ y: {{ beginAtZero: true, grid: {{ color: grid }} }}, x: {{ grid: {{ color: grid }} }} }} }}
-          }});
+          Chart.defaults.color = '#8b949e';
+          Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+          Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+          function filterData(startStr, endStr) {{
+            const idx = [];
+            for (let i = 0; i < ALL_DATES.length; i++) {{
+              if (ALL_DATES[i] >= startStr && ALL_DATES[i] <= endStr) idx.push(i);
+            }}
+            return {{
+              dates: idx.map(i => ALL_DATES[i]),
+              v: idx.map(i => ALL_V[i]),
+              uv: idx.map(i => ALL_UV[i]),
+              c: idx.map(i => ALL_C[i]),
+              uc: idx.map(i => ALL_UC[i]),
+              count: idx.length
+            }};
+          }}
+
+          function destroyCharts() {{
+            Object.values(charts).forEach(c => c.destroy());
+            charts = {{}};
+          }}
+
+          function makeLine(id, data, datasets) {{
+            const ctx = document.getElementById(id).getContext('2d');
+            charts[id] = new Chart(ctx, {{
+              type: 'line',
+              data: {{ labels: data.dates, datasets: datasets }},
+              options: {{
+                responsive: true, maintainAspectRatio: false,
+                interaction: {{ mode: 'index', intersect: false }},
+                plugins: {{ legend: {{ position: 'top', labels: {{ usePointStyle: true, padding: 20, boxWidth: 10 }} }} }},
+                scales: {{
+                  y: {{ beginAtZero: true, grid: {{ color: gridColor }}, ticks: {{ callback: v => v % 1 === 0 ? v : '' }} }},
+                  x: {{ grid: {{ color: gridColor }}, ticks: {{ maxTicksLimit: 20, maxRotation: 45 }} }}
+                }}
+              }}
+            }});
+          }}
+
+          function makeBar(id, labels, datasets, horizontal) {{
+            const ctx = document.getElementById(id).getContext('2d');
+            charts[id] = new Chart(ctx, {{
+              type: 'bar',
+              data: {{ labels: labels, datasets: datasets }},
+              options: {{
+                indexAxis: horizontal ? 'y' : 'x',
+                responsive: true, maintainAspectRatio: false,
+                plugins: {{ legend: {{ display: false }} }},
+                scales: {{ x: {{ beginAtZero: true, grid: {{ color: gridColor }} }}, y: {{ grid: {{ color: gridColor }}, ticks: {{ font: {{ size: 10 }} }} }} }}
+              }}
+            }});
+          }}
+
+          function updateCards(data) {{
+            const totalV = data.v.reduce((a,b) => a+b, 0);
+            const totalUV = data.uv.reduce((a,b) => a+b, 0);
+            const totalC = data.c.reduce((a,b) => a+b, 0);
+            const totalUC = data.uc.reduce((a,b) => a+b, 0);
+            const days = data.count || 1;
+            document.getElementById('cardViews').textContent = totalV.toLocaleString();
+            document.getElementById('cardUV').textContent = '独立访客 ' + totalUV.toLocaleString();
+            document.getElementById('cardClones').textContent = totalC.toLocaleString();
+            document.getElementById('cardUC').textContent = '独立用户 ' + totalUC.toLocaleString();
+            document.getElementById('cardAvgV').textContent = Math.round(totalV / days).toLocaleString();
+            document.getElementById('cardAvgC').textContent = Math.round(totalC / days).toLocaleString();
+          }}
+
+          function updateTable(data) {{
+            const tbody = document.querySelector('#dataTable tbody');
+            tbody.innerHTML = '';
+            const rows = data.dates.length > 60 ? data.dates.slice(-60) : data.dates;
+            const start = data.dates.length > 60 ? data.dates.length - 60 : 0;
+            for (let i = 0; i < rows.length; i++) {{
+              const idx = start + i;
+              tbody.innerHTML += `<tr>
+                <td>${{data.dates[i]}}</td>
+                <td class="num">${{data.v[idx].toLocaleString()}}</td>
+                <td class="num">${{data.uv[idx].toLocaleString()}}</td>
+                <td class="num">${{data.c[idx].toLocaleString()}}</td>
+                <td class="num">${{data.uc[idx].toLocaleString()}}</td>
+              </tr>`;
+            }}
+            if (data.count > 60) {{
+              tbody.innerHTML += `<tr><td colspan="5" style="text-align:center;color:#6e7681;padding:0.6rem">... 仅显示最近 60 条，共 ${{data.count}} 条</td></tr>`;
+            }}
+          }}
+
+          function renderAll(startStr, endStr) {{
+            const data = filterData(startStr, endStr);
+            destroyCharts();
+
+            makeLine('viewsChart', data, [
+              {{ label: 'Total Views', data: data.v, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.08)', fill: true, tension: 0.3, pointRadius: data.count > 90 ? 0 : 1.5, pointHoverRadius: 5, borderWidth: 2 }},
+              {{ label: 'Unique Visitors', data: data.uv, borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.05)', fill: true, tension: 0.3, pointRadius: data.count > 90 ? 0 : 1.5, pointHoverRadius: 5, borderWidth: 2, borderDash: [6,3] }}
+            ]);
+
+            makeLine('clonesChart', data, [
+              {{ label: 'Total Clones', data: data.c, borderColor: '#d2a8ff', backgroundColor: 'rgba(210,168,255,0.08)', fill: true, tension: 0.3, pointRadius: data.count > 90 ? 0 : 1.5, pointHoverRadius: 5, borderWidth: 2 }},
+              {{ label: 'Unique Cloners', data: data.uc, borderColor: '#f0883e', backgroundColor: 'rgba(240,136,62,0.05)', fill: true, tension: 0.3, pointRadius: data.count > 90 ? 0 : 1.5, pointHoverRadius: 5, borderWidth: 2, borderDash: [6,3] }}
+            ]);
+
+            makeBar('refChart', {json.dumps(ref_labels, ensure_ascii=False)}, [
+              {{ label: 'Views', data: {json.dumps(ref_counts)}, backgroundColor: 'rgba(88,166,255,0.7)', borderRadius: 4, borderColor: '#58a6ff', borderWidth: 1 }},
+              {{ label: 'Unique', data: {json.dumps(ref_uniques)}, backgroundColor: 'rgba(63,185,80,0.55)', borderRadius: 4, borderColor: '#3fb950', borderWidth: 1 }}
+            ], true);
+
+            makeBar('pathChart', {json.dumps(path_labels, ensure_ascii=False)}, [
+              {{ label: 'Views', data: {json.dumps(path_counts)}, backgroundColor: 'rgba(188,140,255,0.7)', borderRadius: 4, borderColor: '#bc8cff', borderWidth: 1 }},
+              {{ label: 'Unique', data: {json.dumps(path_uniques)}, backgroundColor: 'rgba(240,136,62,0.55)', borderRadius: 4, borderColor: '#f0883e', borderWidth: 1 }}
+            ], true);
+
+            updateCards(data);
+            updateTable(data);
+          }}
+
+          function applyFilter() {{
+            const s = document.getElementById('startDate').value;
+            const e = document.getElementById('endDate').value;
+            if (!s || !e) return alert('请选择起始和截止日期');
+            if (s > e) return alert('起始日期不能晚于截止日期');
+            document.querySelectorAll('.presets button').forEach(b => b.classList.remove('active'));
+            renderAll(s, e);
+          }}
+
+          function preset(days) {{
+            document.querySelectorAll('.presets button').forEach(b => b.classList.remove('active'));
+            const btn = [...document.querySelectorAll('.presets button')].find(b => b.textContent === (days===0?'全部':days+'天'));
+            if (btn) btn.classList.add('active');
+            let start, end;
+            if (days === 0) {{
+              start = DATA_START;
+              end = DATA_END;
+            }} else {{
+              const e = new Date(ALL_DATES[ALL_DATES.length-1]);
+              const s = new Date(e);
+              s.setDate(s.getDate() - days + 1);
+              start = s.toISOString().split('T')[0];
+              end = e.toISOString().split('T')[0];
+            }}
+            document.getElementById('startDate').value = start;
+            document.getElementById('endDate').value = end;
+            renderAll(start, end);
+          }}
+
+          function resetFilter() {{
+            preset(90);
+          }}
+
+          // Init
+          document.getElementById('rangeInfo').textContent = '数据范围：' + DATA_START + ' ~ ' + DATA_END;
+          resetFilter();
           </script>
           </body>
           </html>"""
 
-          os.makedirs("data", exist_ok=True)
-          with open("data/index.html", "w") as f:
+          with open("data/index.html", "w", encoding="utf-8") as f:
               f.write(html)
-          print("✅ Chart page generated")
+
+          print(f"✅ Dashboard with date filter generated!")
+          print(f"   Historical data: {len(all_dates)} days ({data_start} ~ {data_end})")
           PYEOF
 
       - name: Commit and push
@@ -134,5 +391,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/traffic.csv data/index.html
-          git diff --staged --quiet || git commit -m "📊 Update traffic: $(date +%Y-%m-%d)"
+          git diff --staged --quiet || git commit -m "📊 Update dashboard: $(date +%Y-%m-%d)"
           git push

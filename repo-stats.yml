@@ -1,0 +1,21 @@
+name: CASUALTIES_UNKNOWN_CUSTOM_TRANS_STAT_TRACK
+
+on:
+  schedule:
+    # 每天 UTC 0 点运行一次（北京时间早上 8 点）
+    - cron: "0 0 * * *"
+  # 允许手动触发（方便测试）
+  workflow_dispatch:
+
+permissions:
+  contents: write   # 必须，否则无法写入数据分支
+
+jobs:
+  traffic-stats:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch and store traffic data
+        uses: jgehrcke/github-repo-stats@v1
+        with:
+          repository: ${{ github.repository }}
+          ghtoken: ${{ secrets.STATS_TOKEN }}

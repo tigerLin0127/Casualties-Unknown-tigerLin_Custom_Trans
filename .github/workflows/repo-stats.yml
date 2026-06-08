@@ -1,5 +1,4 @@
 name: CASUALTIES_UNKNOWN_CUSTOM_TRANS_STAT_TRACK
-
 on:
   schedule:
     - cron: "0 0 * * *"
@@ -7,13 +6,133 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   traffic-stats:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch and store traffic data
-        uses: jgehrcke/github-repo-stats@main          # ← 就这里，v1 改成 main
-        with:
-          repository: ${{ github.repository }}
-          ghtoken: ${{ secrets.STATS_TOKEN }}
+      - uses: actions/checkout@v4
+
+      - name: Fetch traffic and update CSV
+        env:
+          GITHUB_TOKEN: ${{ secrets.STATS_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          VIEWS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$REPO/traffic/views")
+          CLONES=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$REPO/traffic/clones")
+
+          V=$(python3 -c "import sys,json; print(json.load(sys.stdin).get('count','0'))" <<< "$VIEWS")
+          UV=$(python3 -c "import sys,json; print(json.load(sys.stdin).get('uniques','0'))" <<< "$VIEWS")
+          C=$(python3 -c "import sys,json; print(json.load(sys.stdin).get('count','0'))" <<< "$CLONES")
+          UC=$(python3 -c "import sys,json; print(json.load(sys.stdin).get('uniques','0'))" <<< "$CLONES")
+
+          mkdir -p data
+          CSV="data/traffic.csv"
+          [ ! -f "$CSV" ] && echo "date,views,unique_views,clones,unique_clones" > "$CSV"
+          echo "$DATE,$V,$UV,$C,$UC" >> "$CSV"
+
+      - name: Generate chart page
+        run: |
+          python3 << 'PYEOF'
+          import json, os
+
+          csv_path = "data/traffic.csv"
+          dates, views, unique_views, clones, unique_clones = [], [], [], [], []
+
+          if os.path.exists(csv_path):
+              with open(csv_path) as f:
+                  lines = f.read().strip().split("\n")
+              for line in lines[1:]:
+                  parts = line.split(",")
+                  if len(parts) == 5:
+                      dates.append(parts[0])
+                      views.append(int(parts[1]))
+                      unique_views.append(int(parts[2]))
+                      clones.append(int(parts[3]))
+                      unique_clones.append(int(parts[4]))
+
+          dates, views, unique_views, clones, unique_clones = (
+              dates[-90:], views[-90:], unique_views[-90:], clones[-90:], unique_clones[-90:]
+          )
+
+          html = f"""<!DOCTYPE html>
+          <html lang="zh">
+          <head>
+          <meta charset="utf-8">
+          <title>Traffic Report</title>
+          <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+          <style>
+            body {{ font-family: -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; background: #0d1117; color: #c9d1d9; }}
+            h1 {{ text-align: center; }}
+            .chart-box {{ background: #161b22; border-radius: 8px; padding: 1.5rem; margin: 1.5rem 0; }}
+            canvas {{ max-height: 350px; }}
+            .footer {{ text-align: center; font-size: 0.85rem; color: #8b949e; margin-top: 2rem; }}
+          </style>
+          </head>
+          <body>
+          <h1>📊 Repository Traffic Report</h1>
+          <p style="text-align:center;color:#8b949e">每日自动更新 · 数据来自 GitHub Traffic API</p>
+
+          <div class="chart-box">
+            <h3>👁️ Views（浏览量）</h3>
+            <canvas id="viewsChart"></canvas>
+          </div>
+          <div class="chart-box">
+            <h3>📥 Clones（克隆量）</h3>
+            <canvas id="clonesChart"></canvas>
+          </div>
+
+          <div class="footer">Powered by GitHub Actions</div>
+
+          <script>
+          const labels = {json.dumps(dates, ensure_ascii=False)};
+          const dark = '#8b949e';
+          const grid = 'rgba(255,255,255,0.06)';
+          Chart.defaults.color = dark;
+          Chart.defaults.borderColor = grid;
+
+          new Chart(document.getElementById('viewsChart'), {{
+            type: 'line',
+            data: {{
+              labels: labels,
+              datasets: [
+                {{ label: 'Views', data: {json.dumps(views)}, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.1)', fill: true, tension: 0.3 }},
+                {{ label: 'Unique visitors', data: {json.dumps(unique_views)}, borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.05)', fill: true, tension: 0.3, borderDash: [5,5] }}
+              ]
+            }},
+            options: {{ responsive: true, plugins: {{ legend: {{ labels: {{ usePointStyle: true }} }} }}, scales: {{ y: {{ beginAtZero: true, grid: {{ color: grid }} }}, x: {{ grid: {{ color: grid }} }} }} }}
+          }});
+
+          new Chart(document.getElementById('clonesChart'), {{
+            type: 'line',
+            data: {{
+              labels: labels,
+              datasets: [
+                {{ label: 'Clones', data: {json.dumps(clones)}, borderColor: '#d2a8ff', backgroundColor: 'rgba(210,168,255,0.1)', fill: true, tension: 0.3 }},
+                {{ label: 'Unique cloners', data: {json.dumps(unique_clones)}, borderColor: '#f0883e', backgroundColor: 'rgba(240,136,62,0.05)', fill: true, tension: 0.3, borderDash: [5,5] }}
+              ]
+            }},
+            options: {{ responsive: true, plugins: {{ legend: {{ labels: {{ usePointStyle: true }} }} }}, scales: {{ y: {{ beginAtZero: true, grid: {{ color: grid }} }}, x: {{ grid: {{ color: grid }} }} }} }}
+          }});
+          </script>
+          </body>
+          </html>"""
+
+          os.makedirs("data", exist_ok=True)
+          with open("data/index.html", "w") as f:
+              f.write(html)
+          print("✅ Chart page generated")
+          PYEOF
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/traffic.csv data/index.html
+          git diff --staged --quiet || git commit -m "📊 Update traffic: $(date +%Y-%m-%d)"
+          git push

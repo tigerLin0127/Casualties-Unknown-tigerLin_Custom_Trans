@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Fetch and store traffic data
-        uses: jgehrcke/github-repo-stats@v1
+        uses: uses: jgehrcke/github-repo-stats@main
         with:
           repository: ${{ github.repository }}
           ghtoken: ${{ secrets.STATS_TOKEN }}

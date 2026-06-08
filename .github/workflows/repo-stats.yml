@@ -20,8 +20,11 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           python3 << 'PYEOF'
-          import urllib.request, json, os, csv
-          from datetime import date
+          import urllib.request
+          import json
+          import os
+          import csv
+          from datetime import date, datetime
 
           token = os.environ["TOKEN"]
           repo = os.environ["REPO"]
@@ -35,64 +38,83 @@ jobs:
                   "User-Agent": "github-actions"
               })
               try:
-                  with urllib.request.urlopen(req) as r:
-                      return json.loads(r.read())
+                  with urllib.request.urlopen(req) as resp:
+                      return json.loads(resp.read())
               except Exception as e:
-                  print(f"⚠️ Fetch {endpoint} failed: {e}")
+                  print(f"⚠️ Failed to fetch {endpoint}: {e}")
                   return None
 
+          # ─── Fetch all data ───
           views_data = fetch("traffic/views")
           clones_data = fetch("traffic/clones")
           referrers = fetch("traffic/popular/referrers") or []
           paths = fetch("traffic/popular/paths") or []
-          repo_info = fetch("") or {}
+          repo_info = fetch("")  # just /repos/{owner}/{repo}
 
-          vc = views_data.get("count", 0) if views_data else 0
-          vu = views_data.get("uniques", 0) if views_data else 0
-          cc = clones_data.get("count", 0) if clones_data else 0
-          cu = clones_data.get("uniques", 0) if clones_data else 0
-          stars = repo_info.get("stargazers_count", 0)
-          forks = repo_info.get("forks_count", 0)
-          repo_name = repo_info.get("full_name", repo)
-          repo_desc = repo_info.get("description", "")
+          # ─── Extract values ───
+          views_count = views_data.get("count", 0) if views_data else 0
+          views_uniques = views_data.get("uniques", 0) if views_data else 0
+          clones_count = clones_data.get("count", 0) if clones_data else 0
+          clones_uniques = clones_data.get("uniques", 0) if clones_data else 0
+          stars = repo_info.get("stargazers_count", 0) if repo_info else 0
+          forks = repo_info.get("forks_count", 0) if repo_info else 0
+          repo_name = repo_info.get("full_name", repo) if repo_info else repo
+          repo_desc = repo_info.get("description", "") if repo_info else ""
 
+          # ─── Update CSV ───
           os.makedirs("data", exist_ok=True)
           csv_path = "data/traffic.csv"
-          header_exists = os.path.exists(csv_path)
+          file_exists = os.path.exists(csv_path)
 
           with open(csv_path, "a", newline="") as f:
-              w = csv.writer(f)
-              if not header_exists:
-                  w.writerow(["date","views","unique_views","clones","unique_clones"])
-              w.writerow([today, vc, vu, cc, cu])
+              writer = csv.writer(f)
+              if not file_exists:
+                  writer.writerow(["date", "views", "unique_views", "clones", "unique_clones"])
+              writer.writerow([today, views_count, views_uniques, clones_count, clones_uniques])
 
-          all_dates, all_v, all_uv, all_c, all_uc = [], [], [], [], []
-          with open(csv_path) as f:
-              for row in csv.DictReader(f):
-                  all_dates.append(row["date"])
-                  all_v.append(int(row["views"]))
-                  all_uv.append(int(row["unique_views"]))
-                  all_c.append(int(row["clones"]))
-                  all_uc.append(int(row["unique_clones"]))
+          # ─── Read historical CSV ───
+          dates, v_hist, uv_hist, c_hist, uc_hist = [], [], [], [], []
+          total_views_all = 0
+          total_clones_all = 0
+          with open(csv_path, "r") as f:
+              reader = csv.DictReader(f)
+              for row in reader:
+                  dates.append(row["date"])
+                  v = int(row["views"])
+                  uv = int(row["unique_views"])
+                  c = int(row["clones"])
+                  uc = int(row["unique_clones"])
+                  v_hist.append(v)
+                  uv_hist.append(uv)
+                  c_hist.append(c)
+                  uc_hist.append(uc)
+                  total_views_all += v
+                  total_clones_all += c
 
-          total_v_all = sum(all_v)
-          total_c_all = sum(all_c)
-          data_start = all_dates[0] if all_dates else today
-          data_end = all_dates[-1] if all_dates else today
-          first_date_90 = all_dates[-90] if len(all_dates) >= 90 else all_dates[0]
+          # Keep last 90 entries for charts
+          def last90(lst):
+              return lst[-90:] if len(lst) > 90 else lst
 
-          top_refs = sorted(referrers, key=lambda x: x.get("count",0), reverse=True)[:12]
-          top_paths = sorted(paths, key=lambda x: x.get("count",0), reverse=True)[:12]
+          dates90 = last90(dates)
+          v90 = last90(v_hist)
+          uv90 = last90(uv_hist)
+          c90 = last90(c_hist)
+          uc90 = last90(uc_hist)
 
-          ref_labels = [r.get("referrer","Unknown").replace("https://","").replace("http://","").rstrip("/")[:55] for r in top_refs]
-          ref_counts = [r.get("count",0) for r in top_refs]
-          ref_uniques = [r.get("uniques",0) for r in top_refs]
+          # ─── Process referrers & paths ───
+          top_refs = sorted(referrers, key=lambda x: x.get("count", 0), reverse=True)[:10]
+          top_paths = sorted(paths, key=lambda x: x.get("count", 0), reverse=True)[:10]
 
-          path_labels = [p.get("path","/")[:45] for p in top_paths]
-          path_counts = [p.get("count",0) for p in top_paths]
-          path_uniques = [p.get("uniques",0) for p in top_paths]
+          ref_labels = [r.get("referrer", "Unknown").replace("https://", "").replace("http://", "").rstrip("/")[:60] for r in top_refs]
+          ref_counts = [r.get("count", 0) for r in top_refs]
+          ref_uniques = [r.get("uniques", 0) for r in top_refs]
 
-          # Build the HTML - JavaScript parts use __D__ as placeholder for $ to avoid YAML ${{ conflicts
+          path_labels = [p.get("path", "/")[:50] for p in top_paths]
+          path_counts = [p.get("count", 0) for p in top_paths]
+          path_uniques = [p.get("uniques", 0) for p in top_paths]
+          path_titles = [p.get("title", "")[:40] for p in top_paths]
+
+          # ─── Generate HTML ───
           html = f"""<!DOCTYPE html>
           <html lang="zh">
           <head>
@@ -101,286 +123,379 @@ jobs:
           <title>Traffic · {repo_name}</title>
           <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
           <style>
-          *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
-          body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh;line-height:1.6}}
-          .container{{max-width:1050px;margin:0 auto;padding:2rem 1.5rem}}
-          .header{{text-align:center;margin-bottom:2rem;padding:2.5rem 2rem;background:linear-gradient(135deg,#161b22 0%,#1c2333 100%);border-radius:16px;border:1px solid #30363d}}
-          .header h1{{font-size:2rem;font-weight:700;background:linear-gradient(135deg,#58a6ff,#bc8cff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}}
-          .header .repo{{font-size:1.1rem;color:#8b949e;margin-top:0.5rem}}
-          .header .desc{{font-size:0.95rem;color:#6e7681;margin-top:0.3rem}}
-          .header .updated{{font-size:0.8rem;color:#484f58;margin-top:0.8rem}}
-
-          .filter-bar{{display:flex;flex-wrap:wrap;align-items:center;gap:0.75rem;margin-bottom:1.5rem;padding:1rem 1.25rem;background:#161b22;border:1px solid #30363d;border-radius:12px}}
-          .filter-bar label{{font-size:0.85rem;color:#8b949e;white-space:nowrap}}
-          .filter-bar input[type="date"]{{background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:0.4rem 0.7rem;font-size:0.85rem;font-family:inherit}}
-          .filter-bar input[type="date"]:focus{{outline:none;border-color:#58a6ff}}
-          .filter-bar button{{padding:0.4rem 0.9rem;border-radius:6px;font-size:0.82rem;font-weight:500;cursor:pointer;border:1px solid #30363d;background:#21262d;color:#c9d1d9;font-family:inherit;transition:all 0.15s}}
-          .filter-bar button:hover{{background:#30363d;border-color:#8b949e}}
-          .filter-bar button.active{{background:#1f6feb;border-color:#1f6feb;color:#fff}}
-          .filter-bar .presets{{display:flex;flex-wrap:wrap;gap:0.4rem}}
-
-          .summary{{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.85rem;margin-bottom:1.5rem}}
-          .card{{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:1.1rem 1.25rem;transition:border-color 0.2s,transform 0.2s}}
-          .card:hover{{border-color:#58a6ff;transform:translateY(-2px)}}
-          .card .icon{{font-size:1.4rem;margin-bottom:0.3rem}}
-          .card .label{{font-size:0.75rem;color:#8b949e;text-transform:uppercase;letter-spacing:0.5px}}
-          .card .value{{font-size:1.7rem;font-weight:700;color:#e6edf3;margin:0.2rem 0}}
-          .card .sub{{font-size:0.75rem;color:#6e7681}}
-
-          .section{{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:1.5rem;margin-bottom:1.25rem}}
-          .section h2{{font-size:1.1rem;font-weight:600;color:#e6edf3;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem}}
-          .chart-wrap canvas{{max-height:300px}}
-
-          .two-col{{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem}}
-          @media(max-width:750px){{.two-col{{grid-template-columns:1fr}} .summary{{grid-template-columns:repeat(2,1fr)}} .filter-bar{{flex-direction:column;align-items:flex-start}}}}
-
-          .data-table{{width:100%;border-collapse:collapse;font-size:0.82rem;margin-top:0.5rem}}
-          .data-table th{{text-align:left;padding:0.5rem 0.7rem;color:#8b949e;font-weight:600;border-bottom:1px solid #21262d;font-size:0.75rem;text-transform:uppercase}}
-          .data-table td{{padding:0.45rem 0.7rem;border-bottom:1px solid #21262d;color:#c9d1d9}}
-          .data-table tr:hover td{{background:#1c2128}}
-          .data-table .num{{text-align:right;font-variant-numeric:tabular-nums}}
-          details{{margin-top:0.5rem}}
-          details summary{{cursor:pointer;color:#58a6ff;font-size:0.85rem;font-weight:500;user-select:none}}
-          details summary:hover{{color:#79c0ff}}
-
-          .footer{{text-align:center;font-size:0.78rem;color:#484f58;margin-top:2.5rem;padding-top:1.5rem;border-top:1px solid #21262d}}
-          .footer a{{color:#58a6ff;text-decoration:none}}
-          .footer a:hover{{text-decoration:underline}}
-          .range-info{{font-size:0.8rem;color:#8b949e;margin-left:auto}}
+          *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+          body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            min-height: 100vh;
+            line-height: 1.6;
+          }}
+          .container {{ max-width: 1000px; margin: 0 auto; padding: 2rem 1.5rem; }}
+          
+          /* Header */
+          .header {{
+            text-align: center;
+            margin-bottom: 2.5rem;
+            padding: 2.5rem 2rem;
+            background: linear-gradient(135deg, #161b22 0%, #1c2333 100%);
+            border-radius: 16px;
+            border: 1px solid #30363d;
+          }}
+          .header h1 {{ font-size: 2rem; font-weight: 700; background: linear-gradient(135deg, #58a6ff, #bc8cff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }}
+          .header .repo {{ font-size: 1.1rem; color: #8b949e; margin-top: 0.5rem; }}
+          .header .desc {{ font-size: 0.95rem; color: #6e7681; margin-top: 0.3rem; }}
+          .header .updated {{ font-size: 0.8rem; color: #484f58; margin-top: 0.8rem; }}
+          
+          /* Summary Cards */
+          .summary {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+          }}
+          .card {{
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            transition: border-color 0.2s, transform 0.2s;
+          }}
+          .card:hover {{ border-color: #58a6ff; transform: translateY(-2px); }}
+          .card .icon {{ font-size: 1.5rem; margin-bottom: 0.5rem; }}
+          .card .label {{ font-size: 0.8rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; }}
+          .card .value {{ font-size: 1.8rem; font-weight: 700; color: #e6edf3; margin: 0.25rem 0; }}
+          .card .sub {{ font-size: 0.8rem; color: #6e7681; }}
+          
+          /* Chart sections */
+          .section {{
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+          }}
+          .section h2 {{
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: #e6edf3;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+          }}
+          .chart-wrap {{ position: relative; width: 100%; }}
+          .chart-wrap canvas {{ max-height: 320px; }}
+          
+          /* Two column layout */
+          .two-col {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+          }}
+          @media (max-width: 700px) {{
+            .two-col {{ grid-template-columns: 1fr; }}
+            .summary {{ grid-template-columns: repeat(2, 1fr); }}
+          }}
+          
+          /* Table */
+          .data-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+          }}
+          .data-table th {{
+            text-align: left;
+            padding: 0.6rem 0.8rem;
+            color: #8b949e;
+            font-weight: 600;
+            border-bottom: 1px solid #21262d;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }}
+          .data-table td {{
+            padding: 0.5rem 0.8rem;
+            border-bottom: 1px solid #21262d;
+            color: #c9d1d9;
+          }}
+          .data-table tr:hover td {{ background: #1c2128; }}
+          .data-table .num {{ text-align: right; font-variant-numeric: tabular-nums; }}
+          
+          details {{
+            margin-top: 1rem;
+          }}
+          details summary {{
+            cursor: pointer;
+            color: #58a6ff;
+            font-size: 0.9rem;
+            font-weight: 500;
+            user-select: none;
+          }}
+          details summary:hover {{ color: #79c0ff; }}
+          
+          .footer {{
+            text-align: center;
+            font-size: 0.8rem;
+            color: #484f58;
+            margin-top: 2.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #21262d;
+          }}
+          .footer a {{ color: #58a6ff; text-decoration: none; }}
+          .footer a:hover {{ text-decoration: underline; }}
           </style>
           </head>
           <body>
           <div class="container">
-
+          
+          <!-- Header -->
           <div class="header">
             <h1>📊 Repository Traffic Dashboard</h1>
             <div class="repo">{repo_name}</div>
             {f'<div class="desc">{repo_desc}</div>' if repo_desc else ''}
             <div class="updated">🕐 最后更新：{today}（每日自动刷新）</div>
           </div>
-
-          <div class="filter-bar">
-            <label>📅 起始</label>
-            <input type="date" id="startDate" value="{first_date_90}">
-            <label>→ 截止</label>
-            <input type="date" id="endDate" value="{data_end}">
-            <button onclick="applyFilter()">🔍 筛选</button>
-            <button onclick="resetFilter()">↺ 重置</button>
-            <div class="presets">
-              <button onclick="preset(7)">7天</button>
-              <button onclick="preset(30)">30天</button>
-              <button onclick="preset(90)" class="active" id="preset90">90天</button>
-              <button onclick="preset(365)">1年</button>
-              <button onclick="preset(0)">全部</button>
+          
+          <!-- Summary cards -->
+          <div class="summary">
+            <div class="card">
+              <div class="icon">👁️</div>
+              <div class="label">今日浏览</div>
+              <div class="value">{views_count:,}</div>
+              <div class="sub">独立访客 {views_uniques:,}</div>
             </div>
-            <span class="range-info" id="rangeInfo">数据范围：{data_start} ~ {data_end}</span>
+            <div class="card">
+              <div class="icon">📥</div>
+              <div class="label">今日克隆</div>
+              <div class="value">{clones_count:,}</div>
+              <div class="sub">独立用户 {clones_uniques:,}</div>
+            </div>
+            <div class="card">
+              <div class="icon">⭐</div>
+              <div class="label">Star 数</div>
+              <div class="value">{stars:,}</div>
+              <div class="sub">全部历史累计</div>
+            </div>
+            <div class="card">
+              <div class="icon">🍴</div>
+              <div class="label">Fork 数</div>
+              <div class="value">{forks:,}</div>
+              <div class="sub">全部历史累计</div>
+            </div>
+            <div class="card">
+              <div class="icon">📈</div>
+              <div class="label">总浏览量</div>
+              <div class="value">{total_views_all:,}</div>
+              <div class="sub">自统计以来累计</div>
+            </div>
+            <div class="card">
+              <div class="icon">📦</div>
+              <div class="label">总克隆量</div>
+              <div class="value">{total_clones_all:,}</div>
+              <div class="sub">自统计以来累计</div>
+            </div>
           </div>
-
-          <div class="summary" id="summaryCards">
-            <div class="card"><div class="icon">📊</div><div class="label">时段浏览</div><div class="value" id="cardViews">-</div><div class="sub" id="cardUV">独立访客 -</div></div>
-            <div class="card"><div class="icon">📥</div><div class="label">时段克隆</div><div class="value" id="cardClones">-</div><div class="sub" id="cardUC">独立用户 -</div></div>
-            <div class="card"><div class="icon">📈</div><div class="label">日均浏览</div><div class="value" id="cardAvgV">-</div><div class="sub">时段内平均</div></div>
-            <div class="card"><div class="icon">📦</div><div class="label">日均克隆</div><div class="value" id="cardAvgC">-</div><div class="sub">时段内平均</div></div>
-            <div class="card"><div class="icon">⭐</div><div class="label">Stars</div><div class="value">{stars:,}</div><div class="sub">全部历史</div></div>
-            <div class="card"><div class="icon">🍴</div><div class="label">Forks</div><div class="value">{forks:,}</div><div class="sub">全部历史</div></div>
+          
+          <!-- Views trend -->
+          <div class="section">
+            <h2>👁️ 浏览量趋势（近 90 天）</h2>
+            <div class="chart-wrap"><canvas id="viewsChart"></canvas></div>
           </div>
-
-          <div class="section"><h2>👁️ 浏览量</h2><div class="chart-wrap"><canvas id="viewsChart"></canvas></div></div>
-          <div class="section"><h2>📥 克隆量</h2><div class="chart-wrap"><canvas id="clonesChart"></canvas></div></div>
+          
+          <!-- Clones trend -->
+          <div class="section">
+            <h2>📥 克隆量趋势（近 90 天）</h2>
+            <div class="chart-wrap"><canvas id="clonesChart"></canvas></div>
+          </div>
+          
+          <!-- Referrers & Paths -->
           <div class="two-col">
-            <div class="section"><h2>🌐 热门来源</h2><div class="chart-wrap"><canvas id="refChart"></canvas></div></div>
-            <div class="section"><h2>📄 热门页面</h2><div class="chart-wrap"><canvas id="pathChart"></canvas></div></div>
+            <div class="section">
+              <h2>🌐 热门来源</h2>
+              <div class="chart-wrap"><canvas id="refChart"></canvas></div>
+            </div>
+            <div class="section">
+              <h2>📄 热门页面</h2>
+              <div class="chart-wrap"><canvas id="pathChart"></canvas></div>
+            </div>
           </div>
+          
+          <!-- Raw data table -->
+          <div class="section">
+            <h2>📋 原始数据</h2>
+            <details>
+              <summary>展开查看逐日数据（近 30 天）</summary>
+              <div style="overflow-x:auto;margin-top:0.5rem;">
+                <table class="data-table">
+                  <thead><tr><th>日期</th><th class="num">Views</th><th class="num">独立访客</th><th class="num">Clones</th><th class="num">独立克隆</th></tr></thead>
+                  <tbody>
+          """
+          # Add last 30 rows to table
+          for i in range(max(0, len(dates)-30), len(dates)):
+              html += f"<tr><td>{dates[i]}</td><td class='num'>{v_hist[i]:,}</td><td class='num'>{uv_hist[i]:,}</td><td class='num'>{c_hist[i]:,}</td><td class='num'>{uc_hist[i]:,}</td></tr>"
 
-          <div class="section"><h2>📋 明细数据</h2>
-            <div style="overflow-x:auto"><table class="data-table" id="dataTable"><thead><tr><th>日期</th><th class="num">Views</th><th class="num">独立访客</th><th class="num">Clones</th><th class="num">独立克隆</th></tr></thead><tbody></tbody></table></div>
-          </div>
+          html += f"""</tbody></table></div></details></div>
 
           <div class="footer">
-            Powered by <a href="https://github.com/{repo}">GitHub Actions</a> · 数据每日 UTC 0:00 自动更新
+            Powered by <a href="https://github.com/{repo}" target="_blank">GitHub Actions</a> · 数据每日 UTC 0:00 自动更新
           </div>
           </div>
 
           <script>
-          var ALL_DATES = {json.dumps(all_dates, ensure_ascii=False)};
-          var ALL_V = {json.dumps(all_v)};
-          var ALL_UV = {json.dumps(all_uv)};
-          var ALL_C = {json.dumps(all_c)};
-          var ALL_UC = {json.dumps(all_uc)};
-          var DATA_START = "{data_start}";
-          var DATA_END = "{data_end}";
-
-          var charts = {{}};
-          var gridColor = 'rgba(255,255,255,0.05)';
-
+          // ─── Chart.js Global Settings ───
           Chart.defaults.color = '#8b949e';
           Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
           Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-
-          function filterData(startStr, endStr) {{
-            var idx = [];
-            for (var i = 0; i < ALL_DATES.length; i++) {{
-              if (ALL_DATES[i] >= startStr && ALL_DATES[i] <= endStr) idx.push(i);
-            }}
-            return {{
-              dates: idx.map(function(i) {{ return ALL_DATES[i]; }}),
-              v: idx.map(function(i) {{ return ALL_V[i]; }}),
-              uv: idx.map(function(i) {{ return ALL_UV[i]; }}),
-              c: idx.map(function(i) {{ return ALL_C[i]; }}),
-              uc: idx.map(function(i) {{ return ALL_UC[i]; }}),
-              count: idx.length
-            }};
-          }}
-
-          function destroyCharts() {{
-            Object.values(charts).forEach(function(c) {{ c.destroy(); }});
-            charts = {{}};
-          }}
-
-          function makeLine(id, data, datasets) {{
-            var ctx = document.getElementById(id).getContext('2d');
-            charts[id] = new Chart(ctx, {{
+          
+          const gridColor = 'rgba(255,255,255,0.05)';
+          const dates = {json.dumps(dates90, ensure_ascii=False)};
+          
+          function makeLineChart(canvasId, datasets) {{
+            return new Chart(document.getElementById(canvasId), {{
               type: 'line',
-              data: {{ labels: data.dates, datasets: datasets }},
+              data: {{ labels: dates, datasets: datasets }},
               options: {{
-                responsive: true, maintainAspectRatio: false,
+                responsive: true,
+                maintainAspectRatio: false,
                 interaction: {{ mode: 'index', intersect: false }},
-                plugins: {{ legend: {{ position: 'top', labels: {{ usePointStyle: true, padding: 20, boxWidth: 10 }} }} }},
+                plugins: {{
+                  legend: {{ position: 'top', labels: {{ usePointStyle: true, padding: 20, boxWidth: 10 }} }}
+                }},
                 scales: {{
-                  y: {{ beginAtZero: true, grid: {{ color: gridColor }}, ticks: {{ callback: function(v) {{ return v % 1 === 0 ? v : ''; }} }} }},
-                  x: {{ grid: {{ color: gridColor }}, ticks: {{ maxTicksLimit: 20, maxRotation: 45 }} }}
+                  y: {{ beginAtZero: true, grid: {{ color: gridColor }}, ticks: {{ callback: v => v % 1 === 0 ? v : '' }} }},
+                  x: {{ grid: {{ color: gridColor }}, ticks: {{ maxTicksLimit: 15, maxRotation: 45 }} }}
                 }}
               }}
             }});
           }}
-
-          function makeBar(id, labels, datasets, horizontal) {{
-            var ctx = document.getElementById(id).getContext('2d');
-            charts[id] = new Chart(ctx, {{
+          
+          function makeBarChart(canvasId, labels, datasets, horizontal) {{
+            return new Chart(document.getElementById(canvasId), {{
               type: 'bar',
               data: {{ labels: labels, datasets: datasets }},
               options: {{
                 indexAxis: horizontal ? 'y' : 'x',
-                responsive: true, maintainAspectRatio: false,
+                responsive: true,
+                maintainAspectRatio: false,
                 plugins: {{ legend: {{ display: false }} }},
-                scales: {{ x: {{ beginAtZero: true, grid: {{ color: gridColor }} }}, y: {{ grid: {{ color: gridColor }}, ticks: {{ font: {{ size: 10 }} }} }} }}
+                scales: {{
+                  x: {{ beginAtZero: true, grid: {{ color: gridColor }} }},
+                  y: {{ grid: {{ color: gridColor }}, ticks: {{ font: {{ size: 11 }} }} }}
+                }}
               }}
             }});
           }}
-
-          function updateCards(data) {{
-            var totalV = data.v.reduce(function(a,b) {{ return a+b; }}, 0);
-            var totalUV = data.uv.reduce(function(a,b) {{ return a+b; }}, 0);
-            var totalC = data.c.reduce(function(a,b) {{ return a+b; }}, 0);
-            var totalUC = data.uc.reduce(function(a,b) {{ return a+b; }}, 0);
-            var days = data.count || 1;
-            document.getElementById('cardViews').textContent = totalV.toLocaleString();
-            document.getElementById('cardUV').textContent = '独立访客 ' + totalUV.toLocaleString();
-            document.getElementById('cardClones').textContent = totalC.toLocaleString();
-            document.getElementById('cardUC').textContent = '独立用户 ' + totalUC.toLocaleString();
-            document.getElementById('cardAvgV').textContent = Math.round(totalV / days).toLocaleString();
-            document.getElementById('cardAvgC').textContent = Math.round(totalC / days).toLocaleString();
-          }}
-
-          function updateTable(data) {{
-            var tbody = document.querySelector('#dataTable tbody');
-            tbody.innerHTML = '';
-            var rows = data.dates.length > 60 ? data.dates.slice(-60) : data.dates;
-            var start = data.dates.length > 60 ? data.dates.length - 60 : 0;
-            for (var i = 0; i < rows.length; i++) {{
-              var idx = start + i;
-              var row = '<tr>' +
-                '<td>' + data.dates[i] + '</td>' +
-                '<td class="num">' + data.v[idx].toLocaleString() + '</td>' +
-                '<td class="num">' + data.uv[idx].toLocaleString() + '</td>' +
-                '<td class="num">' + data.c[idx].toLocaleString() + '</td>' +
-                '<td class="num">' + data.uc[idx].toLocaleString() + '</td>' +
-                '</tr>';
-              tbody.innerHTML += row;
+          
+          // ─── Views Chart ───
+          makeLineChart('viewsChart', [
+            {{
+              label: 'Total Views',
+              data: {json.dumps(v90)},
+              borderColor: '#58a6ff',
+              backgroundColor: 'rgba(88,166,255,0.08)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 1.5,
+              pointHoverRadius: 5,
+              borderWidth: 2
+            }},
+            {{
+              label: 'Unique Visitors',
+              data: {json.dumps(uv90)},
+              borderColor: '#3fb950',
+              backgroundColor: 'rgba(63,185,80,0.05)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 1.5,
+              pointHoverRadius: 5,
+              borderWidth: 2,
+              borderDash: [6, 3]
             }}
-            if (data.count > 60) {{
-              tbody.innerHTML += '<tr><td colspan="5" style="text-align:center;color:#6e7681;padding:0.6rem">... 仅显示最近 60 条，共 ' + data.count + ' 条</td></tr>';
+          ]);
+          
+          // ─── Clones Chart ───
+          makeLineChart('clonesChart', [
+            {{
+              label: 'Total Clones',
+              data: {json.dumps(c90)},
+              borderColor: '#d2a8ff',
+              backgroundColor: 'rgba(210,168,255,0.08)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 1.5,
+              pointHoverRadius: 5,
+              borderWidth: 2
+            }},
+            {{
+              label: 'Unique Cloners',
+              data: {json.dumps(uc90)},
+              borderColor: '#f0883e',
+              backgroundColor: 'rgba(240,136,62,0.05)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 1.5,
+              pointHoverRadius: 5,
+              borderWidth: 2,
+              borderDash: [6, 3]
             }}
-          }}
-
-          function renderAll(startStr, endStr) {{
-            var data = filterData(startStr, endStr);
-            destroyCharts();
-
-            var ptRadius = data.count > 90 ? 0 : 1.5;
-
-            makeLine('viewsChart', data, [
-              {{ label: 'Total Views', data: data.v, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.08)', fill: true, tension: 0.3, pointRadius: ptRadius, pointHoverRadius: 5, borderWidth: 2 }},
-              {{ label: 'Unique Visitors', data: data.uv, borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.05)', fill: true, tension: 0.3, pointRadius: ptRadius, pointHoverRadius: 5, borderWidth: 2, borderDash: [6,3] }}
-            ]);
-
-            makeLine('clonesChart', data, [
-              {{ label: 'Total Clones', data: data.c, borderColor: '#d2a8ff', backgroundColor: 'rgba(210,168,255,0.08)', fill: true, tension: 0.3, pointRadius: ptRadius, pointHoverRadius: 5, borderWidth: 2 }},
-              {{ label: 'Unique Cloners', data: data.uc, borderColor: '#f0883e', backgroundColor: 'rgba(240,136,62,0.05)', fill: true, tension: 0.3, pointRadius: ptRadius, pointHoverRadius: 5, borderWidth: 2, borderDash: [6,3] }}
-            ]);
-
-            makeBar('refChart', {json.dumps(ref_labels, ensure_ascii=False)}, [
-              {{ label: 'Views', data: {json.dumps(ref_counts)}, backgroundColor: 'rgba(88,166,255,0.7)', borderRadius: 4, borderColor: '#58a6ff', borderWidth: 1 }},
-              {{ label: 'Unique', data: {json.dumps(ref_uniques)}, backgroundColor: 'rgba(63,185,80,0.55)', borderRadius: 4, borderColor: '#3fb950', borderWidth: 1 }}
-            ], true);
-
-            makeBar('pathChart', {json.dumps(path_labels, ensure_ascii=False)}, [
-              {{ label: 'Views', data: {json.dumps(path_counts)}, backgroundColor: 'rgba(188,140,255,0.7)', borderRadius: 4, borderColor: '#bc8cff', borderWidth: 1 }},
-              {{ label: 'Unique', data: {json.dumps(path_uniques)}, backgroundColor: 'rgba(240,136,62,0.55)', borderRadius: 4, borderColor: '#f0883e', borderWidth: 1 }}
-            ], true);
-
-            updateCards(data);
-            updateTable(data);
-          }}
-
-          function applyFilter() {{
-            var s = document.getElementById('startDate').value;
-            var e = document.getElementById('endDate').value;
-            if (!s || !e) return alert('请选择起始和截止日期');
-            if (s > e) return alert('起始日期不能晚于截止日期');
-            var btns = document.querySelectorAll('.presets button');
-            for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
-            renderAll(s, e);
-          }}
-
-          function preset(days) {{
-            var btns = document.querySelectorAll('.presets button');
-            for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
-            var targetText = days === 0 ? '全部' : days + '天';
-            for (var i = 0; i < btns.length; i++) {{
-              if (btns[i].textContent === targetText) btns[i].classList.add('active');
+          ]);
+          
+          // ─── Referrers Chart ───
+          makeBarChart('refChart', {json.dumps(ref_labels, ensure_ascii=False)}, [
+            {{
+              label: 'Views',
+              data: {json.dumps(ref_counts)},
+              backgroundColor: 'rgba(88,166,255,0.65)',
+              borderRadius: 4,
+              borderColor: '#58a6ff',
+              borderWidth: 1
+            }},
+            {{
+              label: 'Unique',
+              data: {json.dumps(ref_uniques)},
+              backgroundColor: 'rgba(63,185,80,0.5)',
+              borderRadius: 4,
+              borderColor: '#3fb950',
+              borderWidth: 1
             }}
-            var start, end;
-            if (days === 0) {{
-              start = DATA_START;
-              end = DATA_END;
-            }} else {{
-              var e = new Date(ALL_DATES[ALL_DATES.length-1]);
-              var s = new Date(e);
-              s.setDate(s.getDate() - days + 1);
-              start = s.toISOString().split('T')[0];
-              end = e.toISOString().split('T')[0];
+          ], true);
+          
+          // ─── Paths Chart ───
+          makeBarChart('pathChart', {json.dumps(path_labels, ensure_ascii=False)}, [
+            {{
+              label: 'Views',
+              data: {json.dumps(path_counts)},
+              backgroundColor: 'rgba(188,140,255,0.65)',
+              borderRadius: 4,
+              borderColor: '#bc8cff',
+              borderWidth: 1
+            }},
+            {{
+              label: 'Unique',
+              data: {json.dumps(path_uniques)},
+              backgroundColor: 'rgba(240,136,62,0.5)',
+              borderRadius: 4,
+              borderColor: '#f0883e',
+              borderWidth: 1
             }}
-            document.getElementById('startDate').value = start;
-            document.getElementById('endDate').value = end;
-            renderAll(start, end);
-          }}
-
-          function resetFilter() {{
-            preset(90);
-          }}
-
-          document.getElementById('rangeInfo').textContent = '数据范围：' + DATA_START + ' ~ ' + DATA_END;
-          resetFilter();
+          ], true);
           </script>
           </body>
           </html>"""
 
+          # Write HTML
           with open("data/index.html", "w", encoding="utf-8") as f:
               f.write(html)
 
           print(f"✅ Dashboard generated!")
-          print(f"   Historical data: {len(all_dates)} days ({data_start} ~ {data_end})")
+          print(f"   Views today: {views_count} ({views_uniques} unique)")
+          print(f"   Clones today: {clones_count} ({clones_uniques} unique)")
+          print(f"   Stars: {stars} | Forks: {forks}")
+          print(f"   Referrers: {len(top_refs)} | Paths: {len(top_paths)}")
+          print(f"   Total historical: {total_views_all} views, {total_clones_all} clones")
           PYEOF
 
       - name: Commit and push

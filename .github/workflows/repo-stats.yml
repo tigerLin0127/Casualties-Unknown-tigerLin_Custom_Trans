@@ -1,0 +1,47 @@
+name: Repository Traffic Stats
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  log-traffic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch and log traffic data
+        env:
+          GITHUB_TOKEN: ${{ secrets.STATS_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          DATE=$(date +%Y-%m-%d)
+
+          VIEWS=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$REPO/traffic/views")
+          CLONES=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$REPO/traffic/clones")
+
+          VIEW_COUNT=$(echo "$VIEWS" | python3 -c "import sys,json; print(json.load(sys.stdin).get('count',0))")
+          UNIQUE_VIEWS=$(echo "$VIEWS" | python3 -c "import sys,json; print(json.load(sys.stdin).get('uniques',0))")
+          CLONE_COUNT=$(echo "$CLONES" | python3 -c "import sys,json; print(json.load(sys.stdin).get('count',0))")
+          UNIQUE_CLONES=$(echo "$CLONES" | python3 -c "import sys,json; print(json.load(sys.stdin).get('uniques',0))")
+
+          mkdir -p data
+          CSV="data/traffic.csv"
+          if [ ! -f "$CSV" ]; then
+            echo "date,views,unique_views,clones,unique_clones" > "$CSV"
+          fi
+          echo "$DATE,$VIEW_COUNT,$UNIQUE_VIEWS,$CLONE_COUNT,$UNIQUE_CLONES" >> "$CSV"
+
+      - name: Commit data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/traffic.csv
+          git diff --staged --quiet || git commit -m "📊 Update traffic: $(date +%Y-%m-%d)"
+          git push

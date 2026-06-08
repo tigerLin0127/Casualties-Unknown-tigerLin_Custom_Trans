@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Traffic · tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0d1117;
+  color: #c9d1d9;
+  min-height: 100vh;
+  line-height: 1.6;
+}
+.container { max-width: 1000px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+/* Header */
+.header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+  padding: 2.5rem 2rem;
+  background: linear-gradient(135deg, #161b22 0%, #1c2333 100%);
+  border-radius: 16px;
+  border: 1px solid #30363d;
+}
+.header h1 { font-size: 2rem; font-weight: 700; background: linear-gradient(135deg, #58a6ff, #bc8cff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.header .repo { font-size: 1.1rem; color: #8b949e; margin-top: 0.5rem; }
+.header .desc { font-size: 0.95rem; color: #6e7681; margin-top: 0.3rem; }
+.header .updated { font-size: 0.8rem; color: #484f58; margin-top: 0.8rem; }
+
+/* Summary Cards */
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+.card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.card:hover { border-color: #58a6ff; transform: translateY(-2px); }
+.card .icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+.card .label { font-size: 0.8rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; }
+.card .value { font-size: 1.8rem; font-weight: 700; color: #e6edf3; margin: 0.25rem 0; }
+.card .sub { font-size: 0.8rem; color: #6e7681; }
+
+/* Chart sections */
+.section {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.section h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #e6edf3;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.chart-wrap { position: relative; width: 100%; }
+.chart-wrap canvas { max-height: 320px; }
+
+/* Two column layout */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+@media (max-width: 700px) {
+  .two-col { grid-template-columns: 1fr; }
+  .summary { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Table */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+.data-table th {
+  text-align: left;
+  padding: 0.6rem 0.8rem;
+  color: #8b949e;
+  font-weight: 600;
+  border-bottom: 1px solid #21262d;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.data-table td {
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid #21262d;
+  color: #c9d1d9;
+}
+.data-table tr:hover td { background: #1c2128; }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+details {
+  margin-top: 1rem;
+}
+details summary {
+  cursor: pointer;
+  color: #58a6ff;
+  font-size: 0.9rem;
+  font-weight: 500;
+  user-select: none;
+}
+details summary:hover { color: #79c0ff; }
+
+.footer {
+  text-align: center;
+  font-size: 0.8rem;
+  color: #484f58;
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #21262d;
+}
+.footer a { color: #58a6ff; text-decoration: none; }
+.footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Header -->
+<div class="header">
+  <h1>📊 Repository Traffic Dashboard</h1>
+  <div class="repo">tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans</div>
+  
+  <div class="updated">🕐 最后更新：2026-06-08（每日自动刷新）</div>
+</div>
+
+<!-- Summary cards -->
+<div class="summary">
+  <div class="card">
+    <div class="icon">👁️</div>
+    <div class="label">今日浏览</div>
+    <div class="value">0</div>
+    <div class="sub">独立访客 0</div>
+  </div>
+  <div class="card">
+    <div class="icon">📥</div>
+    <div class="label">今日克隆</div>
+    <div class="value">0</div>
+    <div class="sub">独立用户 0</div>
+  </div>
+  <div class="card">
+    <div class="icon">⭐</div>
+    <div class="label">Star 数</div>
+    <div class="value">0</div>
+    <div class="sub">全部历史累计</div>
+  </div>
+  <div class="card">
+    <div class="icon">🍴</div>
+    <div class="label">Fork 数</div>
+    <div class="value">0</div>
+    <div class="sub">全部历史累计</div>
+  </div>
+  <div class="card">
+    <div class="icon">📈</div>
+    <div class="label">总浏览量</div>
+    <div class="value">0</div>
+    <div class="sub">自统计以来累计</div>
+  </div>
+  <div class="card">
+    <div class="icon">📦</div>
+    <div class="label">总克隆量</div>
+    <div class="value">0</div>
+    <div class="sub">自统计以来累计</div>
+  </div>
+</div>
+
+<!-- Views trend -->
+<div class="section">
+  <h2>👁️ 浏览量趋势（近 90 天）</h2>
+  <div class="chart-wrap"><canvas id="viewsChart"></canvas></div>
+</div>
+
+<!-- Clones trend -->
+<div class="section">
+  <h2>📥 克隆量趋势（近 90 天）</h2>
+  <div class="chart-wrap"><canvas id="clonesChart"></canvas></div>
+</div>
+
+<!-- Referrers & Paths -->
+<div class="two-col">
+  <div class="section">
+    <h2>🌐 热门来源</h2>
+    <div class="chart-wrap"><canvas id="refChart"></canvas></div>
+  </div>
+  <div class="section">
+    <h2>📄 热门页面</h2>
+    <div class="chart-wrap"><canvas id="pathChart"></canvas></div>
+  </div>
+</div>
+
+<!-- Raw data table -->
+<div class="section">
+  <h2>📋 原始数据</h2>
+  <details>
+    <summary>展开查看逐日数据（近 30 天）</summary>
+    <div style="overflow-x:auto;margin-top:0.5rem;">
+      <table class="data-table">
+        <thead><tr><th>日期</th><th class="num">Views</th><th class="num">独立访客</th><th class="num">Clones</th><th class="num">独立克隆</th></tr></thead>
+        <tbody>
+<tr><td>2026-06-08</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td><td class='num'>0</td></tr></tbody></table></div></details></div>
+
+<div class="footer">
+  Powered by <a href="https://github.com/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans" target="_blank">GitHub Actions</a> · 数据每日 UTC 0:00 自动更新
+</div>
+</div>
+
+<script>
+// ─── Chart.js Global Settings ───
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+const gridColor = 'rgba(255,255,255,0.05)';
+const dates = ["2026-06-08"];
+
+function makeLineChart(canvasId, datasets) {
+  return new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: { labels: dates, datasets: datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { usePointStyle: true, padding: 20, boxWidth: 10 } }
+      },
+      scales: {
+        y: { beginAtZero: true, grid: { color: gridColor }, ticks: { callback: v => v % 1 === 0 ? v : '' } },
+        x: { grid: { color: gridColor }, ticks: { maxTicksLimit: 15, maxRotation: 45 } }
+      }
+    }
+  });
+}
+
+function makeBarChart(canvasId, labels, datasets, horizontal) {
+  return new Chart(document.getElementById(canvasId), {
+    type: 'bar',
+    data: { labels: labels, datasets: datasets },
+    options: {
+      indexAxis: horizontal ? 'y' : 'x',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { beginAtZero: true, grid: { color: gridColor } },
+        y: { grid: { color: gridColor }, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+// ─── Views Chart ───
+makeLineChart('viewsChart', [
+  {
+    label: 'Total Views',
+    data: [0],
+    borderColor: '#58a6ff',
+    backgroundColor: 'rgba(88,166,255,0.08)',
+    fill: true,
+    tension: 0.3,
+    pointRadius: 1.5,
+    pointHoverRadius: 5,
+    borderWidth: 2
+  },
+  {
+    label: 'Unique Visitors',
+    data: [0],
+    borderColor: '#3fb950',
+    backgroundColor: 'rgba(63,185,80,0.05)',
+    fill: true,
+    tension: 0.3,
+    pointRadius: 1.5,
+    pointHoverRadius: 5,
+    borderWidth: 2,
+    borderDash: [6, 3]
+  }
+]);
+
+// ─── Clones Chart ───
+makeLineChart('clonesChart', [
+  {
+    label: 'Total Clones',
+    data: [0],
+    borderColor: '#d2a8ff',
+    backgroundColor: 'rgba(210,168,255,0.08)',
+    fill: true,
+    tension: 0.3,
+    pointRadius: 1.5,
+    pointHoverRadius: 5,
+    borderWidth: 2
+  },
+  {
+    label: 'Unique Cloners',
+    data: [0],
+    borderColor: '#f0883e',
+    backgroundColor: 'rgba(240,136,62,0.05)',
+    fill: true,
+    tension: 0.3,
+    pointRadius: 1.5,
+    pointHoverRadius: 5,
+    borderWidth: 2,
+    borderDash: [6, 3]
+  }
+]);
+
+// ─── Referrers Chart ───
+makeBarChart('refChart', [], [
+  {
+    label: 'Views',
+    data: [],
+    backgroundColor: 'rgba(88,166,255,0.65)',
+    borderRadius: 4,
+    borderColor: '#58a6ff',
+    borderWidth: 1
+  },
+  {
+    label: 'Unique',
+    data: [],
+    backgroundColor: 'rgba(63,185,80,0.5)',
+    borderRadius: 4,
+    borderColor: '#3fb950',
+    borderWidth: 1
+  }
+], true);
+
+// ─── Paths Chart ───
+makeBarChart('pathChart', [], [
+  {
+    label: 'Views',
+    data: [],
+    backgroundColor: 'rgba(188,140,255,0.65)',
+    borderRadius: 4,
+    borderColor: '#bc8cff',
+    borderWidth: 1
+  },
+  {
+    label: 'Unique',
+    data: [],
+    backgroundColor: 'rgba(240,136,62,0.5)',
+    borderRadius: 4,
+    borderColor: '#f0883e',
+    borderWidth: 1
+  }
+], true);
+</script>
+</body>
+</html>

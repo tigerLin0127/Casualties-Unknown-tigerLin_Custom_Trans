@@ -36,7 +36,10 @@ jobs:
           print(f"✅ Token loaded ({len(token)} chars)")
 
           def fetch(endpoint):
-              url = f"https://api.github.com/repos/{repo}/{endpoint}" if endpoint else f"https://api.github.com/repos/{repo}"
+              if endpoint:
+                  url = f"https://api.github.com/repos/{repo}/{endpoint}"
+              else:
+                  url = f"https://api.github.com/repos/{repo}"
               req = urllib.request.Request(url, headers={
                   "Authorization": f"Bearer {token}",
                   "Accept": "application/vnd.github+json",
@@ -77,11 +80,41 @@ jobs:
           csv_path = "data/traffic.csv"
           header_exists = os.path.exists(csv_path)
 
-          with open(csv_path, "a", newline="") as f:
-              w = csv.writer(f)
-              if not header_exists:
-                  w.writerow(["date","views","unique_views","clones","unique_clones"])
-              w.writerow([today, vc, vu, cc, cu])
+          if header_exists:
+              with open(csv_path, "a", newline="") as f:
+                  w = csv.writer(f)
+                  w.writerow([today, vc, vu, cc, cu])
+          else:
+              views_daily = (views_data or {}).get("views", [])
+              clones_daily = (clones_data or {}).get("clones", [])
+              clones_map = {}
+              for item in clones_daily:
+                  ts = item.get("timestamp", "")
+                  d = ts[:10] if ts else ""
+                  if d:
+                      clones_map[d] = item
+              rows = []
+              for item in views_daily:
+                  ts = item.get("timestamp", "")
+                  d = ts[:10] if ts else ""
+                  if d:
+                      cv = item.get("count", 0)
+                      uv = item.get("uniques", 0)
+                      c_item = clones_map.get(d, {})
+                      cc_val = c_item.get("count", 0)
+                      cu_val = c_item.get("uniques", 0)
+                      rows.append([d, cv, uv, cc_val, cu_val])
+              today_row = [today, vc, vu, cc, cu]
+              existing_dates = {r[0] for r in rows}
+              if today not in existing_dates:
+                  rows.append(today_row)
+              rows.sort(key=lambda r: r[0])
+              with open(csv_path, "w", newline="") as f:
+                  w = csv.writer(f)
+                  w.writerow(["date", "views", "unique_views", "clones", "unique_clones"])
+                  for row in rows:
+                      w.writerow(row)
+              print(f"📥 Backfilled {len(rows)} days from API (14-day history)")
 
           all_dates, all_v, all_uv, all_c, all_uc = [], [], [], [], []
           with open(csv_path) as f:

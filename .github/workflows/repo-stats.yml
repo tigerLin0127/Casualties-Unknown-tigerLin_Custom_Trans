@@ -20,6 +20,7 @@ jobs:
       - name: Sync with remote
         run: |
           git fetch origin main
+          git clean -fd
           git reset --hard origin/main
 
       - name: Fetch data & generate dashboard

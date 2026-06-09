@@ -55,7 +55,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 </div>
 <div class="filter-bar">
   <label>📅 起始</label>
-  <input type="date" id="startDate" value="2026-06-09">
+  <input type="date" id="startDate" value="2026-05-25">
   <label>→ 截止</label>
   <input type="date" id="endDate" value="2026-06-09">
   <button onclick="applyFilter()">🔍 筛选</button>
@@ -67,7 +67,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <button onclick="preset(365)">1年</button>
     <button onclick="preset(0)">全部</button>
   </div>
-  <span class="range-info" id="rangeInfo">数据范围：2026-06-09 ~ 2026-06-09</span>
+  <span class="range-info" id="rangeInfo">数据范围：2026-05-25 ~ 2026-06-09</span>
 </div>
 <div class="summary" id="summaryCards">
   <div class="card"><div class="icon">📊</div><div class="label">时段浏览</div><div class="value" id="cardViews">-</div><div class="sub" id="cardUV">独立访客 -</div></div>
@@ -89,12 +89,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div class="footer">Powered by <a href="https://github.com/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans">GitHub Actions</a> · 每日 UTC 0:00 自动更新</div>
 </div>
 <script>
-var ALL_DATES = ["2026-06-09"];
-var ALL_V = [440];
-var ALL_UV = [105];
-var ALL_C = [429];
-var ALL_UC = [203];
-var DATA_START = "2026-06-09";
+var ALL_DATES = ["2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-05-30", "2026-05-31", "2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05", "2026-06-06", "2026-06-07", "2026-06-09"];
+var ALL_V = [0, 0, 0, 0, 0, 0, 115, 38, 10, 7, 27, 45, 58, 140, 440];
+var ALL_UV = [0, 0, 0, 0, 0, 0, 29, 14, 8, 6, 12, 10, 7, 28, 105];
+var ALL_C = [0, 0, 0, 0, 0, 0, 159, 2, 1, 0, 1, 16, 111, 139, 429];
+var ALL_UC = [0, 0, 0, 0, 0, 0, 81, 2, 1, 0, 1, 10, 54, 68, 203];
+var DATA_START = "2026-05-25";
 var DATA_END = "2026-06-09";
 var charts = {};
 var gridColor = 'rgba(255,255,255,0.05)';

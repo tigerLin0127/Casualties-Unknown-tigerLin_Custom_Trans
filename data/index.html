@@ -89,11 +89,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div class="footer">Powered by <a href="https://github.com/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans">GitHub Actions</a> · 每日 UTC 0:00 自动更新</div>
 </div>
 <script>
-var ALL_DATES = ["2026-06-08", "2026-06-08", "2026-06-09", "2026-06-09"];
-var ALL_V = [0, 0, 0, 0];
-var ALL_UV = [0, 0, 0, 0];
-var ALL_C = [0, 0, 0, 0];
-var ALL_UC = [0, 0, 0, 0];
+var ALL_DATES = ["2026-06-08", "2026-06-08", "2026-06-09", "2026-06-09", "2026-06-09"];
+var ALL_V = [0, 0, 0, 0, 440];
+var ALL_UV = [0, 0, 0, 0, 105];
+var ALL_C = [0, 0, 0, 0, 429];
+var ALL_UC = [0, 0, 0, 0, 203];
 var DATA_START = "2026-06-08";
 var DATA_END = "2026-06-09";
 var charts = {};
@@ -148,13 +148,13 @@ function renderAll(startStr, endStr) {
     { label: 'Total Clones', data: data.c, borderColor: '#d2a8ff', backgroundColor: 'rgba(210,168,255,0.08)', fill: true, tension: 0.3, pointRadius: data.count>90?0:1.5, pointHoverRadius: 5, borderWidth: 2 },
     { label: 'Unique Cloners', data: data.uc, borderColor: '#f0883e', backgroundColor: 'rgba(240,136,62,0.05)', fill: true, tension: 0.3, pointRadius: data.count>90?0:1.5, pointHoverRadius: 5, borderWidth: 2, borderDash: [6,3] }
   ]);
-  makeBar('refChart', [], [
-    { label: 'Views', data: [], backgroundColor: 'rgba(88,166,255,0.7)', borderRadius: 4, borderColor: '#58a6ff', borderWidth: 1 },
-    { label: 'Unique', data: [], backgroundColor: 'rgba(63,185,80,0.55)', borderRadius: 4, borderColor: '#3fb950', borderWidth: 1 }
+  makeBar('refChart', ["github.com", "Bing", "bilibili.com"], [
+    { label: 'Views', data: [55, 20, 1], backgroundColor: 'rgba(88,166,255,0.7)', borderRadius: 4, borderColor: '#58a6ff', borderWidth: 1 },
+    { label: 'Unique', data: [5, 13, 1], backgroundColor: 'rgba(63,185,80,0.55)', borderRadius: 4, borderColor: '#3fb950', borderWidth: 1 }
   ], true);
-  makeBar('pathChart', [], [
-    { label: 'Views', data: [], backgroundColor: 'rgba(188,140,255,0.7)', borderRadius: 4, borderColor: '#bc8cff', borderWidth: 1 },
-    { label: 'Unique', data: [], backgroundColor: 'rgba(240,136,62,0.55)', borderRadius: 4, borderColor: '#f0883e', borderWidth: 1 }
+  makeBar('pathChart', ["/tigerLin0127/Casualties-Unknown-tigerLin_Cus", "/tigerLin0127/Casualties-Unknown-tigerLin_Cus", "/tigerLin0127/Casualties-Unknown-tigerLin_Cus", "/tigerLin0127/Casualties-Unknown-tigerLin_Cus", "/tigerLin0127/Casualties-Unknown-tigerLin_Cus", "/tigerLin0127/Casualties-Unknown-tigerLin_Cus", "/tigerLin0127/Casualties-Unknown-tigerLin_Cus", "/tigerLin0127/Casualties-Unknown-tigerLin_Cus", "/tigerLin0127/Casualties-Unknown-tigerLin_Cus", "/tigerLin0127/Casualties-Unknown-tigerLin_Cus"], [
+    { label: 'Views', data: [180, 75, 36, 27, 21, 13, 12, 8, 7, 6], backgroundColor: 'rgba(188,140,255,0.7)', borderRadius: 4, borderColor: '#bc8cff', borderWidth: 1 },
+    { label: 'Unique', data: [97, 9, 1, 13, 13, 3, 4, 1, 1, 6], backgroundColor: 'rgba(240,136,62,0.55)', borderRadius: 4, borderColor: '#f0883e', borderWidth: 1 }
   ], true);
   updateCards(data);
   updateTable(data);

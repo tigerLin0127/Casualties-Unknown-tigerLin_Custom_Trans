@@ -86,9 +86,20 @@ jobs:
           header_exists = os.path.exists(csv_path)
 
           if header_exists:
-              with open(csv_path, "a", newline="") as f:
-                  w = csv.writer(f)
-                  w.writerow([today, vc, vu, cc, cu])
+              # 读取已有日期，避免重复追加
+              existing_rows = []
+              existing_dates_set = set()
+              with open(csv_path, "r") as f:
+                  reader = csv.DictReader(f)
+                  for row in reader:
+                      existing_rows.append(row)
+                      existing_dates_set.add(row["date"])
+              if today not in existing_dates_set:
+                  with open(csv_path, "a", newline="") as f:
+                      w = csv.writer(f)
+                      w.writerow([today, vc, vu, cc, cu])
+              else:
+                  print(f"   ⏭️ {today} already exists, skipped")
           else:
               views_daily = (views_data or {}).get("views", [])
               clones_daily = (clones_data or {}).get("clones", [])

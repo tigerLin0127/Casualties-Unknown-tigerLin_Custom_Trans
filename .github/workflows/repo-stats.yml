@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # 解决 Node 20 弃用警告
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   update-dashboard:
@@ -31,7 +31,7 @@ jobs:
           today = date.today().isoformat()
 
           if not token:
-              print("❌ FATAL: TOKEN is empty! Check Secret name in workflow matches Settings → Secrets → Actions")
+              print("❌ FATAL: TOKEN is empty!")
               sys.exit(1)
           print(f"✅ Token loaded ({len(token)} chars)")
 
@@ -46,7 +46,7 @@ jobs:
                   with urllib.request.urlopen(req) as r:
                       body = r.read().decode()
                       data = json.loads(body)
-                      print(f"   ✅ {endpoint}: got {len(body)} bytes")
+                      print(f"   ✅ {endpoint}: {len(body)} bytes")
                       return data
               except urllib.error.HTTPError as e:
                   body = e.read().decode()
@@ -56,7 +56,6 @@ jobs:
                   print(f"   ❌ {endpoint}: {e}")
                   return None
 
-          # ─── Fetch ───
           views_data = fetch("traffic/views")
           clones_data = fetch("traffic/clones")
           referrers = fetch("traffic/popular/referrers") or []
@@ -74,7 +73,6 @@ jobs:
 
           print(f"\n📊 Today: views={vc}({vu}u) clones={cc}({cu}u) stars={stars} forks={forks}")
 
-          # ─── Update CSV ───
           os.makedirs("data", exist_ok=True)
           csv_path = "data/traffic.csv"
           header_exists = os.path.exists(csv_path)
@@ -85,7 +83,6 @@ jobs:
                   w.writerow(["date","views","unique_views","clones","unique_clones"])
               w.writerow([today, vc, vu, cc, cu])
 
-          # ─── Read historical ───
           all_dates, all_v, all_uv, all_c, all_uc = [], [], [], [], []
           with open(csv_path) as f:
               for row in csv.DictReader(f):
@@ -101,7 +98,6 @@ jobs:
           data_end = all_dates[-1] if all_dates else today
           first_date_90 = all_dates[-90] if len(all_dates) >= 90 else all_dates[0]
 
-          # Referrers & paths
           top_refs = sorted(referrers, key=lambda x: x.get("count",0), reverse=True)[:12]
           top_paths = sorted(paths, key=lambda x: x.get("count",0), reverse=True)[:12]
 
@@ -113,7 +109,9 @@ jobs:
           path_counts = [p.get("count",0) for p in top_paths]
           path_uniques = [p.get("uniques",0) for p in top_paths]
 
-          # ─── HTML (same as before, abbreviated for clarity) ───
+          # ⚠️ KEY FIX: use DLR to prevent GitHub Actions from parsing ${ as expression
+          DLR = "$"
+
           html = f"""<!DOCTYPE html>
           <html lang="zh">
           <head>
@@ -205,37 +203,37 @@ jobs:
           <div class="footer">Powered by <a href="https://github.com/{repo}">GitHub Actions</a> · 每日 UTC 0:00 自动更新</div>
           </div>
           <script>
-          const ALL_DATES = {json.dumps(all_dates, ensure_ascii=False)};
-          const ALL_V = {json.dumps(all_v)};
-          const ALL_UV = {json.dumps(all_uv)};
-          const ALL_C = {json.dumps(all_c)};
-          const ALL_UC = {json.dumps(all_uc)};
-          const DATA_START = "{data_start}";
-          const DATA_END = "{data_end}";
-          let charts = {{}};
-          const gridColor = 'rgba(255,255,255,0.05)';
+          var ALL_DATES = {json.dumps(all_dates, ensure_ascii=False)};
+          var ALL_V = {json.dumps(all_v)};
+          var ALL_UV = {json.dumps(all_uv)};
+          var ALL_C = {json.dumps(all_c)};
+          var ALL_UC = {json.dumps(all_uc)};
+          var DATA_START = "{data_start}";
+          var DATA_END = "{data_end}";
+          var charts = {{}};
+          var gridColor = 'rgba(255,255,255,0.05)';
           Chart.defaults.color = '#8b949e';
           Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
           Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
           function filterData(startStr, endStr) {{
-            const idx = [];
-            for (let i = 0; i < ALL_DATES.length; i++)
+            var idx = [];
+            for (var i = 0; i < ALL_DATES.length; i++)
               if (ALL_DATES[i] >= startStr && ALL_DATES[i] <= endStr) idx.push(i);
-            return {{ dates: idx.map(i => ALL_DATES[i]), v: idx.map(i => ALL_V[i]), uv: idx.map(i => ALL_UV[i]), c: idx.map(i => ALL_C[i]), uc: idx.map(i => ALL_UC[i]), count: idx.length }};
+            return {{ dates: idx.map(function(i){{ return ALL_DATES[i]; }}), v: idx.map(function(i){{ return ALL_V[i]; }}), uv: idx.map(function(i){{ return ALL_UV[i]; }}), c: idx.map(function(i){{ return ALL_C[i]; }}), uc: idx.map(function(i){{ return ALL_UC[i]; }}), count: idx.length }};
           }}
-          function destroyCharts() {{ Object.values(charts).forEach(c => c.destroy()); charts = {{}}; }}
+          function destroyCharts() {{ Object.values(charts).forEach(function(c){{ c.destroy(); }}); charts = {{}}; }}
           function makeLine(id, data, datasets) {{
-            const ctx = document.getElementById(id).getContext('2d');
-            charts[id] = new Chart(ctx, {{ type: 'line', data: {{ labels: data.dates, datasets }}, options: {{ responsive: true, maintainAspectRatio: false, interaction: {{ mode: 'index', intersect: false }}, plugins: {{ legend: {{ position: 'top', labels: {{ usePointStyle: true, padding: 20, boxWidth: 10 }} }} }}, scales: {{ y: {{ beginAtZero: true, grid: {{ color: gridColor }}, ticks: {{ callback: v => v%1===0?v:'' }} }}, x: {{ grid: {{ color: gridColor }}, ticks: {{ maxTicksLimit: 20, maxRotation: 45 }} }} }} }} }});
+            var ctx = document.getElementById(id).getContext('2d');
+            charts[id] = new Chart(ctx, {{ type: 'line', data: {{ labels: data.dates, datasets: datasets }}, options: {{ responsive: true, maintainAspectRatio: false, interaction: {{ mode: 'index', intersect: false }}, plugins: {{ legend: {{ position: 'top', labels: {{ usePointStyle: true, padding: 20, boxWidth: 10 }} }} }}, scales: {{ y: {{ beginAtZero: true, grid: {{ color: gridColor }}, ticks: {{ callback: function(v){{ return v%1===0 ? v : ''; }} }} }}, x: {{ grid: {{ color: gridColor }}, ticks: {{ maxTicksLimit: 20, maxRotation: 45 }} }} }} }} }});
           }}
           function makeBar(id, labels, datasets, horizontal) {{
-            const ctx = document.getElementById(id).getContext('2d');
-            charts[id] = new Chart(ctx, {{ type: 'bar', data: {{ labels, datasets }}, options: {{ indexAxis: horizontal?'y':'x', responsive: true, maintainAspectRatio: false, plugins: {{ legend: {{ display: false }} }}, scales: {{ x: {{ beginAtZero: true, grid: {{ color: gridColor }} }}, y: {{ grid: {{ color: gridColor }}, ticks: {{ font: {{ size: 10 }} }} }} }} }} }});
+            var ctx = document.getElementById(id).getContext('2d');
+            charts[id] = new Chart(ctx, {{ type: 'bar', data: {{ labels: labels, datasets: datasets }}, options: {{ indexAxis: horizontal ? 'y' : 'x', responsive: true, maintainAspectRatio: false, plugins: {{ legend: {{ display: false }} }}, scales: {{ x: {{ beginAtZero: true, grid: {{ color: gridColor }} }}, y: {{ grid: {{ color: gridColor }}, ticks: {{ font: {{ size: 10 }} }} }} }} }} }});
           }}
           function updateCards(data) {{
-            const tv = data.v.reduce((a,b)=>a+b,0), tuv = data.uv.reduce((a,b)=>a+b,0), tc = data.c.reduce((a,b)=>a+b,0), tuc = data.uc.reduce((a,b)=>a+b,0);
-            const days = data.count || 1;
+            var tv = data.v.reduce(function(a,b){{return a+b;}},0), tuv = data.uv.reduce(function(a,b){{return a+b;}},0), tc = data.c.reduce(function(a,b){{return a+b;}},0), tuc = data.uc.reduce(function(a,b){{return a+b;}},0);
+            var days = data.count || 1;
             document.getElementById('cardViews').textContent = tv.toLocaleString();
             document.getElementById('cardUV').textContent = '独立访客 ' + tuv.toLocaleString();
             document.getElementById('cardClones').textContent = tc.toLocaleString();
@@ -244,17 +242,17 @@ jobs:
             document.getElementById('cardAvgC').textContent = Math.round(tc/days).toLocaleString();
           }}
           function updateTable(data) {{
-            const tbody = document.querySelector('#dataTable tbody');
+            var tbody = document.querySelector('#dataTable tbody');
             tbody.innerHTML = '';
-            const show = Math.min(data.count, 60);
-            for (let i = 0; i < show; i++) {{
-              const idx = data.count - show + i;
-              tbody.innerHTML += `<tr><td>${{data.dates[i]}}</td><td class="num">${{data.v[idx].toLocaleString()}}</td><td class="num">${{data.uv[idx].toLocaleString()}}</td><td class="num">${{data.c[idx].toLocaleString()}}</td><td class="num">${{data.uc[idx].toLocaleString()}}</td></tr>`;
+            var show = Math.min(data.count, 60);
+            for (var i = 0; i < show; i++) {{
+              var idx = data.count - show + i;
+              tbody.innerHTML += '<tr><td>' + data.dates[i] + '</td><td class="num">' + data.v[idx].toLocaleString() + '</td><td class="num">' + data.uv[idx].toLocaleString() + '</td><td class="num">' + data.c[idx].toLocaleString() + '</td><td class="num">' + data.uc[idx].toLocaleString() + '</td></tr>';
             }}
-            if (data.count > 60) tbody.innerHTML += `<tr><td colspan="5" style="text-align:center;color:#6e7681;padding:0.6rem">... 仅显示最近 60 条，共 ${{data.count}} 条</td></tr>`;
+            if (data.count > 60) tbody.innerHTML += '<tr><td colspan="5" style="text-align:center;color:#6e7681;padding:0.6rem">... 仅显示最近 60 条，共 ' + data.count + ' 条</td></tr>';
           }}
           function renderAll(startStr, endStr) {{
-            const data = filterData(startStr, endStr);
+            var data = filterData(startStr, endStr);
             destroyCharts();
             makeLine('viewsChart', data, [
               {{ label: 'Total Views', data: data.v, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.08)', fill: true, tension: 0.3, pointRadius: data.count>90?0:1.5, pointHoverRadius: 5, borderWidth: 2 }},
@@ -276,22 +274,22 @@ jobs:
             updateTable(data);
           }}
           function applyFilter() {{
-            const s = document.getElementById('startDate').value;
-            const e = document.getElementById('endDate').value;
+            var s = document.getElementById('startDate').value;
+            var e = document.getElementById('endDate').value;
             if (!s || !e) return alert('请选择起止日期');
             if (s > e) return alert('起始不能晚于截止');
-            document.querySelectorAll('.presets button').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.presets button').forEach(function(b){{ b.classList.remove('active'); }});
             renderAll(s, e);
           }}
           function preset(days) {{
-            document.querySelectorAll('.presets button').forEach(b => b.classList.remove('active'));
-            const btn = [...document.querySelectorAll('.presets button')].find(b => b.textContent === (days===0?'全部':days+'天'));
+            document.querySelectorAll('.presets button').forEach(function(b){{ b.classList.remove('active'); }});
+            var btn = Array.from(document.querySelectorAll('.presets button')).find(function(b){{ return b.textContent === (days===0 ? '全部' : days+'天'); }});
             if (btn) btn.classList.add('active');
-            let start, end;
+            var start, end;
             if (days === 0) {{ start = DATA_START; end = DATA_END; }}
             else {{
-              const e = new Date(ALL_DATES[ALL_DATES.length-1]);
-              const s = new Date(e); s.setDate(s.getDate() - days + 1);
+              var e = new Date(ALL_DATES[ALL_DATES.length-1]);
+              var s = new Date(e); s.setDate(s.getDate() - days + 1);
               start = s.toISOString().split('T')[0];
               end = e.toISOString().split('T')[0];
             }}

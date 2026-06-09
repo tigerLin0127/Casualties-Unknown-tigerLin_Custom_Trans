@@ -17,6 +17,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Sync with remote
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+
       - name: Fetch data & generate dashboard
         env:
           TOKEN: ${{ secrets.CASUALTIES_UNKNOWN_CUSTOM_TRANS_STAT_TRACK }}
@@ -344,11 +349,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          mv data/index.html /tmp/index.html 2>/dev/null || true
-          mv data/traffic.csv /tmp/traffic.csv 2>/dev/null || true
-          git pull --rebase origin main
-          mv /tmp/index.html data/index.html 2>/dev/null || true
-          mv /tmp/traffic.csv data/traffic.csv 2>/dev/null || true
           git add data/traffic.csv data/index.html
           git diff --staged --quiet || git commit -m "📊 Update dashboard: $(date +%Y-%m-%d)"
           git push origin main

@@ -22,10 +22,6 @@ jobs:
           TOKEN: ${{ secrets.CASUALTIES_UNKNOWN_CUSTOM_TRANS_STAT_TRACK }}
           REPO: ${{ github.repository }}
         run: |
-          # 拉取最新远程代码并强制同步
-          git fetch origin main
-          git reset --hard origin/main
-
           python3 << 'PYEOF'
           import urllib.request, json, os, csv, sys
           from datetime import date
@@ -155,7 +151,7 @@ jobs:
           <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
           <style>
           *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
-          body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d1117;100;line-height:1.6}}
+          body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh;line-height:1.6}}
           .container{{max-width:1050px;margin:0 auto;padding:2rem 1.5rem}}
           .header{{text-align:center;margin-bottom:2rem;padding:2.5rem 2rem;background:linear-gradient(135deg,#161b22 0%,#1c2333 100%);border-radius:16px;border:1px solid #30363d}}
           .header h1{{font-size:2rem;font-weight:700;background:linear-gradient(135deg,#58a6ff,#bc8cff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}}
@@ -349,9 +345,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/traffic.csv data/index.html
-          if ! git diff --staged --quiet; then
-            git commit -m "📊 Update dashboard: $(date +%Y-%m-%d)"
-            git push origin main
-          else
-            echo "No changes to commit"
-          fi
+          git stash
+          git pull --rebase origin main
+          git stash pop
+          git diff --staged --quiet || git commit -m "📊 Update dashboard: $(date +%Y-%m-%d)"
+          git push origin main

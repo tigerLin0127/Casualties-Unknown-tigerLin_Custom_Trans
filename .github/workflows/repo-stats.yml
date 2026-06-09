@@ -143,7 +143,7 @@ jobs:
           ref_counts = [r.get("count",0) for r in top_refs]
           ref_uniques = [r.get("uniques",0) for r in top_refs]
 
-          path_labels = [p.get("path","/")[:80] for p in top_paths]
+          path_labels = [p.get("path","/")[:255] for p in top_paths]
           path_counts = [p.get("count",0) for p in top_paths]
           path_uniques = [p.get("uniques",0) for p in top_paths]
 

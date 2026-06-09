@@ -1,4 +1,4 @@
-name: CASUALTIESUNKNOWN_STATTRACK_TOKEN
+name: Repository Traffic Dashboard
 
 on:
   schedule:
@@ -36,7 +36,7 @@ jobs:
           print(f"✅ Token loaded ({len(token)} chars)")
 
           def fetch(endpoint):
-              url = f"https://api.github.com/repos/{repo}/{endpoint}"
+              url = f"https://api.github.com/repos/{repo}/{endpoint}" if endpoint else f"https://api.github.com/repos/{repo}"
               req = urllib.request.Request(url, headers={
                   "Authorization": f"Bearer {token}",
                   "Accept": "application/vnd.github+json",
@@ -46,14 +46,14 @@ jobs:
                   with urllib.request.urlopen(req) as r:
                       body = r.read().decode()
                       data = json.loads(body)
-                      print(f"   ✅ {endpoint}: {len(body)} bytes")
+                      print(f"   ✅ {endpoint or 'repo'}: {len(body)} bytes")
                       return data
               except urllib.error.HTTPError as e:
                   body = e.read().decode()
-                  print(f"   ❌ {endpoint}: HTTP {e.code} → {body[:300]}")
+                  print(f"   ❌ {endpoint or 'repo'}: HTTP {e.code} -> {body[:300]}")
                   return None
               except Exception as e:
-                  print(f"   ❌ {endpoint}: {e}")
+                  print(f"   ❌ {endpoint or 'repo'}: {e}")
                   return None
 
           views_data = fetch("traffic/views")
@@ -108,9 +108,6 @@ jobs:
           path_labels = [p.get("path","/")[:45] for p in top_paths]
           path_counts = [p.get("count",0) for p in top_paths]
           path_uniques = [p.get("uniques",0) for p in top_paths]
-
-          # ⚠️ KEY FIX: use DLR to prevent GitHub Actions from parsing ${ as expression
-          DLR = "$"
 
           html = f"""<!DOCTYPE html>
           <html lang="zh">
@@ -314,6 +311,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
           git add data/traffic.csv data/index.html
           git diff --staged --quiet || git commit -m "📊 Update dashboard: $(date +%Y-%m-%d)"
           git push

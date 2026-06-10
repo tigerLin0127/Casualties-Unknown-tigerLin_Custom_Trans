@@ -70,10 +70,21 @@ jobs:
           paths = fetch("traffic/popular/paths") or []
           repo_info = fetch("") or {}
 
-          vc = (views_data or {}).get("count", 0)
-          vu = (views_data or {}).get("uniques", 0)
-          cc = (clones_data or {}).get("count", 0)
-          cu = (clones_data or {}).get("uniques", 0)
+          # 从每日明细中提取今天的单日数据
+          views_daily = (views_data or {}).get("views", [])
+          clones_daily = (clones_data or {}).get("clones", [])
+
+          vc = vu = cc = cu = 0
+          for item in views_daily:
+              if (item.get("timestamp","") or "")[:10] == today:
+                  vc = item.get("count", 0)
+                  vu = item.get("uniques", 0)
+                  break
+          for item in clones_daily:
+              if (item.get("timestamp","") or "")[:10] == today:
+                  cc = item.get("count", 0)
+                  cu = item.get("uniques", 0)
+                  break
           stars = repo_info.get("stargazers_count", 0)
           forks = repo_info.get("forks_count", 0)
           repo_name = repo_info.get("full_name", repo)
@@ -101,8 +112,6 @@ jobs:
               else:
                   print(f"   ⏭️ {today} already exists, skipped")
           else:
-              views_daily = (views_data or {}).get("views", [])
-              clones_daily = (clones_data or {}).get("clones", [])
               clones_map = {}
               for item in clones_daily:
                   ts = item.get("timestamp", "")

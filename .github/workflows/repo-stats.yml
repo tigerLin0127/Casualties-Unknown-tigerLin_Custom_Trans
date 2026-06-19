@@ -2,14 +2,11 @@ name: Repository Traffic Dashboard
 
 on:
   schedule:
-    - cron: "0 0 * * *"
-  workflow_dispatch:
+    - cron: "0 0 * * *"   # 每天 UTC 0 点运行一次
+  workflow_dispatch:       # 允许手动触发
 
 permissions:
   contents: write
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   update-dashboard:
@@ -17,10 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Sync with remote
+      - name: Pull latest remote
         run: |
-          git fetch origin main
-          git reset --hard origin/main
+          git pull --rebase origin ${{ github.ref_name }}
 
       - name: Fetch data & generate dashboard
         env:
@@ -28,12 +24,15 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           python3 << 'PYEOF'
-          import urllib.request, json, os, csv, sys
-          from datetime import date
+          import urllib.request, urllib.error, json, os, csv, sys, html
+          from datetime import date, timedelta
 
           token = os.environ.get("TOKEN", "").strip()
           repo = os.environ["REPO"]
-          today = date.today().isoformat()
+          
+          # 因为 GitHub Traffic 数据通常延迟一天，取昨天更可靠
+          target_date = (date.today() - timedelta(days=1)).isoformat()
+          today = date.today().isoformat()  # 仍然用于在页面上显示“更新日期”
 
           if not token:
               print("❌ FATAL: TOKEN is empty!")
@@ -70,34 +69,35 @@ jobs:
           paths = fetch("traffic/popular/paths") or []
           repo_info = fetch("") or {}
 
-          # 从每日明细中提取今天的单日数据
           views_daily = (views_data or {}).get("views", [])
           clones_daily = (clones_data or {}).get("clones", [])
 
+          # 从每日明细中找到目标日期（昨天）的数据
           vc = vu = cc = cu = 0
           for item in views_daily:
-              if (item.get("timestamp","") or "")[:10] == today:
+              if (item.get("timestamp","") or "")[:10] == target_date:
                   vc = item.get("count", 0)
                   vu = item.get("uniques", 0)
                   break
           for item in clones_daily:
-              if (item.get("timestamp","") or "")[:10] == today:
+              if (item.get("timestamp","") or "")[:10] == target_date:
                   cc = item.get("count", 0)
                   cu = item.get("uniques", 0)
                   break
+
           stars = repo_info.get("stargazers_count", 0)
           forks = repo_info.get("forks_count", 0)
           repo_name = repo_info.get("full_name", repo)
           repo_desc = repo_info.get("description", "")
 
-          print(f"\n📊 Today: views={vc}({vu}u) clones={cc}({cu}u) stars={stars} forks={forks}")
+          print(f"\n📊 Yesterday ({target_date}): views={vc}({vu}u) clones={cc}({cu}u) stars={stars} forks={forks}")
 
           os.makedirs("data", exist_ok=True)
           csv_path = "data/traffic.csv"
           header_exists = os.path.exists(csv_path)
 
+          # 更新 CSV 文件（目标日期是昨天）
           if header_exists:
-              # 读取已有日期，避免重复追加
               existing_rows = []
               existing_dates_set = set()
               with open(csv_path, "r") as f:
@@ -105,13 +105,14 @@ jobs:
                   for row in reader:
                       existing_rows.append(row)
                       existing_dates_set.add(row["date"])
-              if today not in existing_dates_set:
+              if target_date not in existing_dates_set:
                   with open(csv_path, "a", newline="") as f:
                       w = csv.writer(f)
-                      w.writerow([today, vc, vu, cc, cu])
+                      w.writerow([target_date, vc, vu, cc, cu])
               else:
-                  print(f"   ⏭️ {today} already exists, skipped")
+                  print(f"   ⏭️ {target_date} already exists, skipped")
           else:
+              # 首次创建 CSV，回填所有已有数据
               clones_map = {}
               for item in clones_daily:
                   ts = item.get("timestamp", "")
@@ -129,10 +130,8 @@ jobs:
                       cc_val = c_item.get("count", 0)
                       cu_val = c_item.get("uniques", 0)
                       rows.append([d, cv, uv, cc_val, cu_val])
-              today_row = [today, vc, vu, cc, cu]
-              existing_dates = {r[0] for r in rows}
-              if today not in existing_dates:
-                  rows.append(today_row)
+              if target_date not in {r[0] for r in rows}:
+                  rows.append([target_date, vc, vu, cc, cu])
               rows.sort(key=lambda r: r[0])
               with open(csv_path, "w", newline="") as f:
                   w = csv.writer(f)
@@ -141,6 +140,7 @@ jobs:
                       w.writerow(row)
               print(f"📥 Backfilled {len(rows)} days from API (14-day history)")
 
+          # 读取全部数据，用于图表
           all_dates, all_v, all_uv, all_c, all_uc = [], [], [], [], []
           with open(csv_path) as f:
               for row in csv.DictReader(f):
@@ -152,8 +152,8 @@ jobs:
 
           total_v = sum(all_v)
           total_c = sum(all_c)
-          data_start = all_dates[0] if all_dates else today
-          data_end = all_dates[-1] if all_dates else today
+          data_start = all_dates[0] if all_dates else target_date
+          data_end = all_dates[-1] if all_dates else target_date
           first_date_90 = all_dates[-90] if len(all_dates) >= 90 else all_dates[0]
 
           top_refs = sorted(referrers, key=lambda x: x.get("count",0), reverse=True)[:12]
@@ -167,12 +167,13 @@ jobs:
           path_counts = [p.get("count",0) for p in top_paths]
           path_uniques = [p.get("uniques",0) for p in top_paths]
 
+          # HTML 生成（已修正表格 Bug 并添加 html.escape）
           html = f"""<!DOCTYPE html>
           <html lang="zh">
           <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Traffic · {repo_name}</title>
+          <title>Traffic · {html.escape(repo_name)}</title>
           <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
           <style>
           *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
@@ -218,8 +219,8 @@ jobs:
           <div class="container">
           <div class="header">
             <h1>📊 Repository Traffic Dashboard</h1>
-            <div class="repo">{repo_name}</div>
-            {f'<div class="desc">{repo_desc}</div>' if repo_desc else ''}
+            <div class="repo">{html.escape(repo_name)}</div>
+            {f'<div class="desc">{html.escape(repo_desc)}</div>' if repo_desc else ''}
             <div class="updated">🕐 最后更新：{today}（每日自动刷新）</div>
           </div>
           <div class="filter-bar">
@@ -255,7 +256,7 @@ jobs:
           <div class="section"><h2>📋 明细数据</h2>
             <div style="overflow-x:auto"><table class="data-table" id="dataTable"><thead><tr><th>日期</th><th class="num">Views</th><th class="num">独立访客</th><th class="num">Clones</th><th class="num">独立克隆</th></tr></thead><tbody></tbody></table></div>
           </div>
-          <div class="footer">Powered by <a href="https://github.com/{repo}">GitHub Actions</a> · 每日 UTC 0:00 自动更新</div>
+          <div class="footer">Powered by <a href="https://github.com/{html.escape(repo)}">GitHub Actions</a> · 每日 UTC 0:00 自动更新</div>
           </div>
           <script>
           var ALL_DATES = {json.dumps(all_dates, ensure_ascii=False)};
@@ -301,8 +302,8 @@ jobs:
             tbody.innerHTML = '';
             var show = Math.min(data.count, 60);
             for (var i = 0; i < show; i++) {{
-              var idx = data.count - show + i;
-              tbody.innerHTML += '<tr><td>' + data.dates[i] + '</td><td class="num">' + data.v[idx].toLocaleString() + '</td><td class="num">' + data.uv[idx].toLocaleString() + '</td><td class="num">' + data.c[idx].toLocaleString() + '</td><td class="num">' + data.uc[idx].toLocaleString() + '</td></tr>';
+              var idx = data.count - show + i;   // 正确指向最新数据
+              tbody.innerHTML += '<tr><td>' + data.dates[idx] + '</td><td class="num">' + data.v[idx].toLocaleString() + '</td><td class="num">' + data.uv[idx].toLocaleString() + '</td><td class="num">' + data.c[idx].toLocaleString() + '</td><td class="num">' + data.uc[idx].toLocaleString() + '</td></tr>';
             }}
             if (data.count > 60) tbody.innerHTML += '<tr><td colspan="5" style="text-align:center;color:#6e7681;padding:0.6rem">... 仅显示最近 60 条，共 ' + data.count + ' 条</td></tr>';
           }}
@@ -371,4 +372,4 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/traffic.csv data/index.html
           git diff --staged --quiet || git commit -m "📊 Update dashboard: $(date +%Y-%m-%d)"
-          git push origin main
+          git push origin ${{ github.ref_name }}

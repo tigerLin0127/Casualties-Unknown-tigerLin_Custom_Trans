@@ -1,5 +1,3 @@
-<meta name="msvalidate.01" content="3C6708DCF4EE0F3DA772EBF00F52F1B3" />
-
 目前该页面的总访问量：
 ![:visits](https://count.getloli.com/@tigerLin_CU_Trans?theme=booru-rfck)
 

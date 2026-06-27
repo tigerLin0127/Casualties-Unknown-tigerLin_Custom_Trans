@@ -2035,7 +2035,7 @@ tigerLin临时起意制作的翻译版本，不那么忠于原文，<color=orang
         "purchase": "购买",
         "trade": "交给商人",
         "reputationtip": "好感度",
-        "reputationtipdsc": "影响物品价格和幸存者对你的态度，还影响砍价的成功概率。受你的一般状态及与幸存者的互动影响。",
+        "reputationtipdsc": "影响物品价格和商人对你的态度，受你的一般状态及对商人的互动方式影响。",
         "valuegiventip": "余额",
         "valuegiventipdsc": "幸存者欠你的金额数目。这是你交易物品时的货币。\n\n你最多只能给总共60价值的物品，之后幸存者会开始拒绝接受更多",
         "traderpurchase": "购买物品",
@@ -2051,7 +2051,9 @@ tigerLin临时起意制作的翻译版本，不那么忠于原文，<color=orang
         "hug": "拥抱",
         "hugdsc": "给他们一个拥抱。如果他们对你心存疑虑，你可能会吓到他们。",
         "threaten": "威胁",
-        "threatendsc": "威胁他们以便免费拿一两件东西。可能会适得其反。",
+        "threatendsc": "威胁他们以便免费拿一两件东西。可能会适得其反。
+
+<color=yellow>在这之前先确保自己准备良好，或至少是留条退路</color>",
         "rest": "休息",
         "restdsc": "与交易者一起打个盹以建立信任并获得更舒适的睡眠。通常的睡眠条件适用。",
         "tradermove": "移动",

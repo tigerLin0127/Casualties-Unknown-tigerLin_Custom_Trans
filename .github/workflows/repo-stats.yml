@@ -2,7 +2,8 @@ name: Repository Traffic Dashboard
 
 on:
   schedule:
-    - cron: "0 0 * * *"   # 每天 UTC 0 点运行一次
+    # 每5天 UTC 13:00 运行（≈ 北京时间 21:00）
+    - cron: "0 13 */5 * *"
   workflow_dispatch:       # 允许手动触发
 
 permissions:
@@ -72,7 +73,7 @@ jobs:
           views_daily = (views_data or {}).get("views", [])
           clones_daily = (clones_data or {}).get("clones", [])
 
-          # 从每日明细中找到目标日期（昨天）的数据
+          # 从每日明细中找到目标日期（昨天）的数据（用于摘要显示）
           vc = vu = cc = cu = 0
           for item in views_daily:
               if (item.get("timestamp","") or "")[:10] == target_date:
@@ -94,51 +95,48 @@ jobs:
 
           os.makedirs("data", exist_ok=True)
           csv_path = "data/traffic.csv"
-          header_exists = os.path.exists(csv_path)
 
-          # 更新 CSV 文件（目标日期是昨天）
-          if header_exists:
-              existing_rows = []
-              existing_dates_set = set()
+          # 读取现有 CSV（保留历史数据）
+          all_data = {}  # date -> {"views": int, "unique_views": int, "clones": int, "unique_clones": int}
+          if os.path.exists(csv_path):
               with open(csv_path, "r") as f:
                   reader = csv.DictReader(f)
                   for row in reader:
-                      existing_rows.append(row)
-                      existing_dates_set.add(row["date"])
-              if target_date not in existing_dates_set:
-                  with open(csv_path, "a", newline="") as f:
-                      w = csv.writer(f)
-                      w.writerow([target_date, vc, vu, cc, cu])
-              else:
-                  print(f"   ⏭️ {target_date} already exists, skipped")
-          else:
-              # 首次创建 CSV，回填所有已有数据
-              clones_map = {}
-              for item in clones_daily:
-                  ts = item.get("timestamp", "")
-                  d = ts[:10] if ts else ""
-                  if d:
-                      clones_map[d] = item
-              rows = []
-              for item in views_daily:
-                  ts = item.get("timestamp", "")
-                  d = ts[:10] if ts else ""
-                  if d:
-                      cv = item.get("count", 0)
-                      uv = item.get("uniques", 0)
-                      c_item = clones_map.get(d, {})
-                      cc_val = c_item.get("count", 0)
-                      cu_val = c_item.get("uniques", 0)
-                      rows.append([d, cv, uv, cc_val, cu_val])
-              if target_date not in {r[0] for r in rows}:
-                  rows.append([target_date, vc, vu, cc, cu])
-              rows.sort(key=lambda r: r[0])
-              with open(csv_path, "w", newline="") as f:
-                  w = csv.writer(f)
-                  w.writerow(["date", "views", "unique_views", "clones", "unique_clones"])
-                  for row in rows:
-                      w.writerow(row)
-              print(f"📥 Backfilled {len(rows)} days from API (14-day history)")
+                      all_data[row["date"]] = {
+                          "views": int(row["views"]),
+                          "unique_views": int(row["unique_views"]),
+                          "clones": int(row["clones"]),
+                          "unique_clones": int(row["unique_clones"]),
+                      }
+
+          # 用最新 API 数据更新/追加
+          for item in views_daily:
+              d = (item.get("timestamp", "") or "")[:10]
+              if not d:
+                  continue
+              if d not in all_data:
+                  all_data[d] = {"views": 0, "unique_views": 0, "clones": 0, "unique_clones": 0}
+              all_data[d]["views"] = item.get("count", 0)
+              all_data[d]["unique_views"] = item.get("uniques", 0)
+
+          for item in clones_daily:
+              d = (item.get("timestamp", "") or "")[:10]
+              if not d:
+                  continue
+              if d not in all_data:
+                  all_data[d] = {"views": 0, "unique_views": 0, "clones": 0, "unique_clones": 0}
+              all_data[d]["clones"] = item.get("count", 0)
+              all_data[d]["unique_clones"] = item.get("uniques", 0)
+
+          # 按日期排序后写回 CSV
+          sorted_dates = sorted(all_data.keys())
+          with open(csv_path, "w", newline="") as f:
+              w = csv.writer(f)
+              w.writerow(["date", "views", "unique_views", "clones", "unique_clones"])
+              for d in sorted_dates:
+                  rec = all_data[d]
+                  w.writerow([d, rec["views"], rec["unique_views"], rec["clones"], rec["unique_clones"]])
+          print(f"📥 CSV updated: {len(sorted_dates)} days (latest API data merged)")
 
           # 读取全部数据，用于图表
           all_dates, all_v, all_uv, all_c, all_uc = [], [], [], [], []
@@ -167,7 +165,7 @@ jobs:
           path_counts = [p.get("count",0) for p in top_paths]
           path_uniques = [p.get("uniques",0) for p in top_paths]
 
-          # HTML 生成（已修正表格 Bug 并添加 html.escape）
+          # HTML 生成（保持不变）
           html = f"""<!DOCTYPE html>
           <html lang="zh">
           <head>

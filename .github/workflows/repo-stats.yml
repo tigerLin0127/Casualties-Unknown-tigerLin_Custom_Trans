@@ -2,8 +2,8 @@ name: Repository Traffic Dashboard
 
 on:
   schedule:
-    # 每5天 UTC 13:00 运行（≈ 北京时间 21:00）
-    - cron: "0 13 */5 * *"
+    # 每天 UTC 13:00 运行（≈ 北京时间 21:00）
+    - cron: "0 13 * * *"
   workflow_dispatch:
 
 permissions:
@@ -154,7 +154,6 @@ jobs:
           path_counts = [p.get("count",0) for p in top_paths]
           path_uniques = [p.get("uniques",0) for p in top_paths]
 
-          # 注意：此处 HTML 中的两个文字已改为“每5日”和“UTC 13:00”
           html = f"""<!DOCTYPE html>
           <html lang="zh">
           <head>
@@ -208,7 +207,7 @@ jobs:
             <h1>📊 Repository Traffic Dashboard</h1>
             <div class="repo">{html.escape(repo_name)}</div>
             {f'<div class="desc">{html.escape(repo_desc)}</div>' if repo_desc else ''}
-            <div class="updated">🕐 最后更新：{today}（每5日自动刷新）</div>
+            <div class="updated">🕐 最后更新：{today}（每日自动刷新）</div>
           </div>
           <div class="filter-bar">
             <label>📅 起始</label>
@@ -243,7 +242,7 @@ jobs:
           <div class="section"><h2>📋 明细数据</h2>
             <div style="overflow-x:auto"><table class="data-table" id="dataTable"><thead><tr><th>日期</th><th class="num">Views</th><th class="num">独立访客</th><th class="num">Clones</th><th class="num">独立克隆</th></tr></thead><tbody></tbody></table></div>
           </div>
-          <div class="footer">Powered by <a href="https://github.com/{html.escape(repo)}">GitHub Actions</a> · 每5日 UTC 13:00 自动更新</div>
+          <div class="footer">Powered by <a href="https://github.com/{html.escape(repo)}">GitHub Actions</a> · 每日 UTC 13:00 自动更新</div>
           </div>
           <script>
           var ALL_DATES = {json.dumps(all_dates, ensure_ascii=False)};

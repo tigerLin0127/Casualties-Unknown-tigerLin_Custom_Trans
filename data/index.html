@@ -51,13 +51,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <h1>📊 Repository Traffic Dashboard</h1>
   <div class="repo">tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans</div>
   <div class="desc">此为tigerLin对Casualities Unknown的个人汉化界面，更加风格化，同时集成许多新手友好设计，硬核游戏，软性讲解,关联：未知伤亡汉化，未知伤亡中文补丁</div>
-  <div class="updated">🕐 最后更新：2026-07-05（每日自动刷新）</div>
+  <div class="updated">🕐 最后更新：2026-07-06（每日自动刷新）</div>
 </div>
 <div class="filter-bar">
   <label>📅 起始</label>
   <input type="date" id="startDate" value="2026-05-25">
   <label>→ 截止</label>
-  <input type="date" id="endDate" value="2026-07-04">
+  <input type="date" id="endDate" value="2026-07-05">
   <button onclick="applyFilter()">🔍 筛选</button>
   <button onclick="resetFilter()">↺ 重置</button>
   <div class="presets">
@@ -67,7 +67,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <button onclick="preset(365)">1年</button>
     <button onclick="preset(0)">全部</button>
   </div>
-  <span class="range-info" id="rangeInfo">数据范围：2026-05-25 ~ 2026-07-04</span>
+  <span class="range-info" id="rangeInfo">数据范围：2026-05-25 ~ 2026-07-05</span>
 </div>
 <div class="summary" id="summaryCards">
   <div class="card"><div class="icon">📊</div><div class="label">时段浏览</div><div class="value" id="cardViews">-</div><div class="sub" id="cardUV">独立访客 -</div></div>
@@ -89,13 +89,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div class="footer">Powered by <a href="https://github.com/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans">GitHub Actions</a> · 每日 UTC 13:00 自动更新</div>
 </div>
 <script>
-var ALL_DATES = ["2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-05-30", "2026-05-31", "2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05", "2026-06-06", "2026-06-07", "2026-06-08", "2026-06-09", "2026-06-10", "2026-06-11", "2026-06-12", "2026-06-13", "2026-06-14", "2026-06-15", "2026-06-16", "2026-06-17", "2026-06-18", "2026-06-19", "2026-06-20", "2026-06-21", "2026-06-22", "2026-06-23", "2026-06-24", "2026-06-25", "2026-06-26", "2026-06-27", "2026-06-28", "2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04"];
-var ALL_V = [0, 0, 0, 0, 0, 0, 115, 38, 10, 7, 27, 45, 58, 140, 169, 274, 55, 16, 28, 82, 14, 11, 29, 7, 64, 115, 16, 5, 19, 47, 50, 8, 35, 143, 27, 24, 9, 20, 31, 31, 23];
-var ALL_UV = [0, 0, 0, 0, 0, 0, 29, 14, 8, 6, 12, 10, 7, 28, 10, 21, 7, 8, 14, 23, 10, 5, 12, 5, 11, 20, 5, 5, 7, 8, 4, 7, 13, 20, 8, 7, 3, 12, 7, 14, 11];
-var ALL_C = [0, 0, 0, 0, 0, 0, 159, 2, 1, 0, 1, 16, 111, 139, 269, 282, 45, 109, 12, 71, 57, 53, 9, 20, 71, 70, 12, 14, 11, 41, 72, 19, 16, 166, 13, 9, 13, 7, 14, 10, 5];
-var ALL_UC = [0, 0, 0, 0, 0, 0, 81, 2, 1, 0, 1, 10, 54, 68, 122, 120, 25, 31, 7, 27, 18, 19, 6, 10, 31, 37, 7, 10, 7, 20, 31, 13, 11, 59, 8, 5, 8, 6, 9, 6, 4];
+var ALL_DATES = ["2026-05-25", "2026-05-26", "2026-05-27", "2026-05-28", "2026-05-29", "2026-05-30", "2026-05-31", "2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05", "2026-06-06", "2026-06-07", "2026-06-08", "2026-06-09", "2026-06-10", "2026-06-11", "2026-06-12", "2026-06-13", "2026-06-14", "2026-06-15", "2026-06-16", "2026-06-17", "2026-06-18", "2026-06-19", "2026-06-20", "2026-06-21", "2026-06-22", "2026-06-23", "2026-06-24", "2026-06-25", "2026-06-26", "2026-06-27", "2026-06-28", "2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04", "2026-07-05"];
+var ALL_V = [0, 0, 0, 0, 0, 0, 115, 38, 10, 7, 27, 45, 58, 140, 169, 274, 55, 16, 28, 82, 14, 11, 29, 7, 64, 115, 16, 5, 19, 47, 50, 8, 35, 143, 27, 24, 9, 20, 31, 31, 23, 20];
+var ALL_UV = [0, 0, 0, 0, 0, 0, 29, 14, 8, 6, 12, 10, 7, 28, 10, 21, 7, 8, 14, 23, 10, 5, 12, 5, 11, 20, 5, 5, 7, 8, 4, 7, 13, 20, 8, 7, 3, 12, 7, 14, 11, 10];
+var ALL_C = [0, 0, 0, 0, 0, 0, 159, 2, 1, 0, 1, 16, 111, 139, 269, 282, 45, 109, 12, 71, 57, 53, 9, 20, 71, 70, 12, 14, 11, 41, 72, 19, 16, 166, 13, 9, 13, 7, 14, 10, 5, 14];
+var ALL_UC = [0, 0, 0, 0, 0, 0, 81, 2, 1, 0, 1, 10, 54, 68, 122, 120, 25, 31, 7, 27, 18, 19, 6, 10, 31, 37, 7, 10, 7, 20, 31, 13, 11, 59, 8, 5, 8, 6, 9, 6, 4, 8];
 var DATA_START = "2026-05-25";
-var DATA_END = "2026-07-04";
+var DATA_END = "2026-07-05";
 var charts = {};
 var gridColor = 'rgba(255,255,255,0.05)';
 Chart.defaults.color = '#8b949e';
@@ -149,12 +149,12 @@ function renderAll(startStr, endStr) {
     { label: 'Unique Cloners', data: data.uc, borderColor: '#f0883e', backgroundColor: 'rgba(240,136,62,0.05)', fill: true, tension: 0.3, pointRadius: data.count>90?0:1.5, pointHoverRadius: 5, borderWidth: 2, borderDash: [6,3] }
   ]);
   makeBar('refChart', ["Bing", "github.com", "bilibili.com", "ecosia.org", "so.com"], [
-    { label: 'Views', data: [106, 31, 2, 1, 1], backgroundColor: 'rgba(88,166,255,0.7)', borderRadius: 4, borderColor: '#58a6ff', borderWidth: 1 },
-    { label: 'Unique', data: [37, 14, 1, 1, 1], backgroundColor: 'rgba(63,185,80,0.55)', borderRadius: 4, borderColor: '#3fb950', borderWidth: 1 }
+    { label: 'Views', data: [125, 31, 2, 1, 1], backgroundColor: 'rgba(88,166,255,0.7)', borderRadius: 4, borderColor: '#58a6ff', borderWidth: 1 },
+    { label: 'Unique', data: [45, 14, 1, 1, 1], backgroundColor: 'rgba(63,185,80,0.55)', borderRadius: 4, borderColor: '#3fb950', borderWidth: 1 }
   ], true);
-  makeBar('pathChart', ["/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/tree/main/data", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/blob/main/README.md", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/graphs/traffic", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/blob/main/data/traffic.csv", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/blob/main/tigerLin CustomTrans V0.1.2.json", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/tree/main", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/edit/main/README.md", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/tree/main/.github/workflows", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/blob/main/tigerLin CustomTrans V0.1.1 Patch 1.json"], [
-    { label: 'Views', data: [184, 34, 30, 24, 19, 18, 13, 12, 11, 11], backgroundColor: 'rgba(188,140,255,0.7)', borderRadius: 4, borderColor: '#bc8cff', borderWidth: 1 },
-    { label: 'Unique', data: [97, 11, 14, 1, 3, 11, 5, 1, 7, 4], backgroundColor: 'rgba(240,136,62,0.55)', borderRadius: 4, borderColor: '#f0883e', borderWidth: 1 }
+  makeBar('pathChart', ["/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/tree/main/data", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/blob/main/README.md", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/graphs/traffic", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/blob/main/tigerLin CustomTrans V0.1.2.json", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/blob/main/data/traffic.csv", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/tree/main", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/edit/main/README.md", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/tree/main/.github/workflows", "/tigerLin0127/Casualties-Unknown-tigerLin_Custom_Trans/blob/main/tigerLin CustomTrans V0.1.1 Patch 1.json"], [
+    { label: 'Views', data: [191, 36, 31, 24, 20, 20, 13, 12, 11, 11], backgroundColor: 'rgba(188,140,255,0.7)', borderRadius: 4, borderColor: '#bc8cff', borderWidth: 1 },
+    { label: 'Unique', data: [99, 12, 15, 1, 13, 3, 5, 1, 7, 4], backgroundColor: 'rgba(240,136,62,0.55)', borderRadius: 4, borderColor: '#f0883e', borderWidth: 1 }
   ], true);
   updateCards(data);
   updateTable(data);

@@ -1,0 +1,3 @@
+# 汉化 JSON 必须字节不变：latest.json 里记录的是 sha256，
+# 一旦被 git 做 LF/CRLF 转换，玩家下载到的文件哈希就对不上，自动更新会拒绝写入。
+*.json -text

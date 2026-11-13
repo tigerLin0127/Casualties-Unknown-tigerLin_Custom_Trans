@@ -1,11 +1,11 @@
 {
-  "channels": {
-    "main": {
-      "version": "0.4.0.1",
-      "file": "tigerLin CustomTrans V0.4.0.1.json",
-      "sha256": "152a78fa016b8629462d165d2d32fd1913400efcc113f483f0aaf5b93fadeaea",
-      "game": "7.0.1",
-      "date": "2026-11-01"
+    "channels": {
+        "main": {
+            "version": "0.5.0",
+            "file": "tigerLin CustomTrans V0.5.0.json",
+            "sha256": "be7e14873b84f1b47166239efd414ec6568f6b973052aa0dfd335a4a787445fd",
+            "game": "1.0.1",
+            "date": "2026-11-13"
+        }
     }
-  }
 }
